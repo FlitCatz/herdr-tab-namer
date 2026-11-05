@@ -57,38 +57,102 @@ export function taskId(label) {
   return String(label).replace(/^fm-/, "");
 }
 
+// Backlog rows as Firstmate writes them (`data/backlog.md`), parsed the way its fleet
+// snapshot (bin/fm-fleet-snapshot.sh) reads them, which is what the Board shows:
+//   - [ ] <id> - <title> blocked-by: <id> (repo: <project>) (kind: ship) (priority: 2) (since 2026-11-04)
+const ROW = /^[-*]\s+\[[ xX]\]\s+(\S+)\s+-\s+(.*)$/;
+const BOLD_ROW = /^[-*]\s+\*\*([^*]+)\*\*\s+-\s+(.*)$/;
+const TRAILING_META = /\s*\(\s*(?:(?:repo|kind|priority|hold|hold-kind|hold-until):\s*[^)]*|(?:since|merged|reported|done)\s+[^)]*)\s*\)\s*$/;
+
 /**
- * Firstmate's tasks by id from its `state/home-summary.json`: `{ project, title }`.
- * Null when the text isn't JSON, so the caller can keep what it knew.
+ * A row's `(key: value)` metadata, the last one when repeated.
+ * @param {string} rest
+ * @param {string} key
+ */
+function rowMeta(rest, key) {
+  const m = new RegExp(`.*(?:\\(|,\\s*)${key}:\\s*([^,)]*)`).exec(rest);
+  return m ? m[1].trim() : "";
+}
+
+/**
+ * A row's title: links, `blocked-by:` notes and trailing metadata removed.
+ * @param {string} rest
+ */
+export function backlogTitle(rest) {
+  let title = rest
+    .replace(/<?https?:\/\/[^\s)"<>]+>?/g, "")
+    .replace(/\s*blocked-by:\s+[^\s)]+\s+-\s+.*$/, "")
+    .replace(/\s*blocked-by:\s+\S+/g, "");
+  for (let i = 0; i < 20 && TRAILING_META.test(title); i++) title = title.replace(TRAILING_META, "");
+  return title
+    .replace(/\s+-\s+data\/[^\s)]+\/report\.md$/, "")
+    .replace(/\s+data\/[^\s)]+\/report\.md$/, "")
+    .replace(/\s+-\s+local main$/, "")
+    .replace(/\s+local main$/, "")
+    .replace(/\s+-\s*$/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * The title without its project in front ("shop: x", "shop x" -> "x"), since the
+ * name shows the project already.
+ * @param {string} title
+ * @param {string} project
+ */
+export function stripProject(title, project) {
+  if (!project) return title;
+  for (const sep of [":", " "]) {
+    if (title.startsWith(project + sep)) {
+      const rest = title.slice(project.length + sep.length).trim();
+      if (rest) return rest;
+    }
+  }
+  return title;
+}
+
+/**
+ * Firstmate's tasks by id from its `data/backlog.md` (every section): `{ project, title }`.
+ * Null when there is no backlog text, so the caller can keep what it knew.
  * @param {string | null | undefined} text
  * @returns {Tasks | null}
  */
-export function parseFirstmateTasks(text) {
+export function parseBacklog(text) {
+  if (typeof text !== "string") return null;
   /** @type {Tasks} */
   const tasks = new Map();
-  let summary;
-  try { summary = JSON.parse(text ?? ""); } catch { return null; }
-  for (const child of Array.isArray(summary?.active_children) ? summary.active_children : []) {
-    if (typeof child?.id !== "string" || !child.id) continue;
-    const project = typeof child.repo === "string" ? child.repo.trim() : "";
-    let title = typeof child.name === "string" ? child.name.trim() : "";
-    // Firstmate titles usually start with their project ("herdr-tab-namer: ...").
-    if (project && title.startsWith(`${project}:`)) title = title.slice(project.length + 1).trim();
-    tasks.set(child.id, { project, title: title || child.id });
+  for (const line of text.split("\n")) {
+    const m = ROW.exec(line) ?? BOLD_ROW.exec(line);
+    if (!m) continue;
+    const id = m[1].trim();
+    const rest = m[2];
+    // The backlog writes "-" for an item with no project (Firstmate's own work).
+    const repo = rowMeta(rest, "repo");
+    const project = repo === "-" ? "" : repo;
+    tasks.set(id, { project, title: stripProject(backlogTitle(rest), project) || id });
   }
   return tasks;
 }
 
 /**
- * `<project> · <task title>` for a Firstmate task, or its id when the home doesn't know it.
+ * `<project> · <task title>` for a Firstmate task. Null when the home doesn't know it:
+ * the caller then uses the task id, but never in place of a better name it already gave.
  * @param {string} label
  * @param {Tasks} tasks
  */
 export function firstmateName(label, tasks) {
-  const id = taskId(label);
-  const task = tasks.get(id);
-  if (!task) return truncate(id);
+  const task = tasks.get(taskId(label));
+  if (!task) return null;
   return truncate(task.project ? `${task.project} · ${task.title}` : task.title);
+}
+
+/**
+ * A terminal address (`t1j`, `vps/t7`): what some terminals show when nothing named them.
+ * @param {string} text
+ * @param {string | null | undefined} address
+ */
+export function isAddress(text, address) {
+  return text === address || /^(?:[\w.-]+\/)?t[0-9][0-9a-z]*$/i.test(text);
 }
 
 /**
@@ -97,24 +161,31 @@ export function firstmateName(label, tasks) {
  * @param {Partial<Pane>} pane
  */
 export function generalName(terminal, pane) {
+  const address = terminal?.address ?? pane?.terminal;
   const name = String(terminal?.name ?? "").trim();
-  if (name) return truncate(name);
+  if (name && !isAddress(name, address)) return truncate(name);
   const raw = String(terminal?.title || pane?.title || "").trim();
   if (/^[~/]/.test(raw)) return null; // a shell showing its folder
   const title = cleanTitle(raw);
-  if (!title || isGenericTitle(title, pane?.program)) return null;
+  if (!title || isAddress(title, address) || isGenericTitle(title, pane?.program)) return null;
   return truncate(title);
 }
 
 /**
  * The name a tab should carry: Firstmate's task first, then the general sources.
+ * `fallback`: only the bare task id, because the Firstmate home doesn't know the task.
  * @param {AgentTab} entry
  * @param {Tasks} tasks
+ * @returns {{ name: string, fallback: boolean } | null}
  */
 export function wantedName(entry, tasks) {
   const label = entry.terminal?.labels?.[FIRSTMATE_TASK];
-  if (typeof label === "string" && label) return firstmateName(label, tasks);
-  return generalName(entry.terminal, entry.pane);
+  if (typeof label === "string" && label) {
+    const name = firstmateName(label, tasks);
+    return name ? { name, fallback: false } : { name: truncate(taskId(label)), fallback: true };
+  }
+  const name = generalName(entry.terminal, entry.pane);
+  return name ? { name, fallback: false } : null;
 }
 
 /**
@@ -187,11 +258,14 @@ export function reconcile(tabs, { owned = {}, pending = {}, tasks = new Map(), n
       delete nextOwned[tab.id]; // a person's name
       continue;
     }
-    const wanted = wantedName(tab, tasks);
-    if (!wanted || (tab.named && tab.name === wanted)) continue;
-    if (nextPending[tab.id]?.name === wanted) continue;
-    renames.push({ id: tab.id, name: wanted });
-    nextPending[tab.id] = { name: wanted, at: now };
+    const want = wantedName(tab, tasks);
+    if (!want || (tab.named && tab.name === want.name)) continue;
+    // A bare task id never replaces a name this mod already gave (a backlog that couldn't
+    // be read, or another copy pointed at another home).
+    if (want.fallback && tab.named) continue;
+    if (nextPending[tab.id]?.name === want.name) continue;
+    renames.push({ id: tab.id, name: want.name });
+    nextPending[tab.id] = { name: want.name, at: now };
   }
   return { renames, owned: nextOwned, pending: nextPending };
 }

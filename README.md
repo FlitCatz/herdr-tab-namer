@@ -27,12 +27,16 @@ For each agent tab, the first source that has something:
 
 1. **Firstmate task.** A terminal carrying the `firstmate.task` label is a Firstmate task.
    When the layout gives the button a `firstmate_home`, the name is
-   `<project> · <task title>` from that home's `state/home-summary.json`. Without a home,
-   or for a task the summary doesn't list, the name is the task id.
+   `<project> · <task title>` from that home's backlog (`data/backlog.md`: the row's
+   `(repo: ...)` and title, the same ones Firstmate's Board shows). A title that starts with
+   its project (`my-app: ...`, `my-app ...`) loses that prefix, so the project shows once.
+   Without a home, or for a task the backlog doesn't list, the name is the task id, and an
+   id never replaces a better name the namer already gave.
 2. **Terminal name.** The name the terminal was started with (`hc run --name ...`).
 3. **Terminal title.** The title the agent set (Claude Code and Codex set one that says what
    they're working on), without leading spinner glyphs. Titles that only name the
-   program (`Claude Code`), a version (`2.1.318`) or a folder (`~/src`) don't count.
+   program (`Claude Code`), a version (`2.1.318`), a folder (`~/src`) or a bare terminal
+   address (`t1j`, which Herdr shows for a terminal with no title) don't count.
 
 Herdr and herdr-core don't keep an agent's first message, so that can't be a source. A tab
 with none of these stays unnamed until one shows up.

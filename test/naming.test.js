@@ -2,20 +2,28 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   MAX_NAME, PENDING_MS, agentTabs, cleanTitle, countNamed, firstmateName, generalName,
-  parseFirstmateTasks, reconcile, truncate,
+  parseBacklog, reconcile, stripProject, truncate,
 } from "../mods/herdr-tab-namer/naming.js";
 
 const claude = { key: "claude", name: "Claude Code", agent: true, shell: false };
 const zsh = { key: "shell", name: "zsh", agent: false, shell: true };
 
-const summary = JSON.stringify({
-  active_children: [
-    { id: "tab-namer", repo: "herdr-tab-namer", name: "herdr-tab-namer: name agent tabs" },
-    { id: "no-repo", name: "Audit the login flow" },
-    { id: "bad" },
-    "junk",
-  ],
-});
+// Fictional rows shaped like Firstmate's data/backlog.md.
+const backlog = [
+  "# Backlog",
+  "",
+  "## In flight",
+  "- [ ] tab-namer - herdr-tab-namer: 에이전트 탭에 작업 이름 자동 부여(범용, 우선), 상단 버튼 (repo: herdr-tab-namer) (kind: ship) (priority: 2) (since 2026-11-04)",
+  "  A body line: (repo: not-this) - [ ] fake - ignored",
+  "- [ ] shop-0405 - shop 04-05(신) 결제 승인 계약 PR-S1: 승인 endpoint·상태기계·OTP 경로 제거(GSD 04-05) blocked-by: shop-replan blocked-by: shop-cleanup (repo: shop) (kind: ship) (priority: 0) (since 2026-11-04)",
+  "- [ ] shop-audit - shop 기반 점검 결함 8건 수정 data/audit-shop/report.md (repo: shop) (kind: ship) (priority: 1) (since 2026-11-04)",
+  "## Queued",
+  "- [ ] own-work - Tidy the notes · weekly (repo: -) (kind: ship)",
+  "- [ ] waits - Ship the app https://example.com/x blocked-by: own-work - needs notes first (repo: app)",
+  "## Done",
+  "- [x] old-one - app: Old thing (repo: app) (merged 2026-10-01)",
+  "- **bold-id** - Bold row title (repo: app)",
+].join("\n");
 
 test("truncate keeps short names, cuts long ones by characters with an ellipsis", () => {
   assert.equal(truncate("  fix   login  "), "fix login");
@@ -32,23 +40,37 @@ test("cleanTitle drops spinner and status glyphs in front", () => {
   assert.equal(cleanTitle("(draft) notes"), "(draft) notes");
 });
 
-test("parseFirstmateTasks reads project and title, stripping the project prefix", () => {
-  const tasks = parseFirstmateTasks(summary);
-  assert.deepEqual(tasks.get("tab-namer"), { project: "herdr-tab-namer", title: "name agent tabs" });
-  assert.deepEqual(tasks.get("no-repo"), { project: "", title: "Audit the login flow" });
-  assert.deepEqual(tasks.get("bad"), { project: "", title: "bad" });
-  assert.equal(tasks.size, 3);
-  assert.equal(parseFirstmateTasks("{not json"), null);
-  assert.equal(parseFirstmateTasks(null), null);
-  assert.equal(parseFirstmateTasks("{}").size, 0);
+test("parseBacklog reads every row's project and title like Firstmate's snapshot", () => {
+  const tasks = parseBacklog(backlog);
+  assert.deepEqual(tasks.get("tab-namer"), { project: "herdr-tab-namer", title: "에이전트 탭에 작업 이름 자동 부여(범용, 우선), 상단 버튼" });
+  assert.deepEqual(tasks.get("shop-0405"), { project: "shop", title: "04-05(신) 결제 승인 계약 PR-S1: 승인 endpoint·상태기계·OTP 경로 제거(GSD 04-05)" });
+  assert.deepEqual(tasks.get("shop-audit"), { project: "shop", title: "기반 점검 결함 8건 수정" });
+  assert.deepEqual(tasks.get("own-work"), { project: "", title: "Tidy the notes · weekly" });
+  assert.deepEqual(tasks.get("waits"), { project: "app", title: "Ship the app" });
+  assert.deepEqual(tasks.get("old-one"), { project: "app", title: "Old thing" });
+  assert.deepEqual(tasks.get("bold-id"), { project: "app", title: "Bold row title" });
+  assert.equal(tasks.has("fake"), false, "body lines are not rows");
+  assert.equal(tasks.size, 7);
+  assert.equal(parseBacklog(null), null);
+  assert.equal(parseBacklog("").size, 0);
 });
 
-test("firstmateName gives <project> · <task title>, else the task id", () => {
-  const tasks = parseFirstmateTasks(summary);
-  assert.equal(firstmateName("fm-tab-namer", tasks), "herdr-tab-namer · name agent tabs");
-  assert.equal(firstmateName("fm-no-repo", tasks), "Audit the login flow");
-  assert.equal(firstmateName("fm-unknown-task", tasks), "unknown-task");
-  assert.equal(firstmateName("fm-tab-namer", new Map()), "tab-namer");
+test("stripProject drops the project in front, with a colon or a space", () => {
+  assert.equal(stripProject("shop: fix login", "shop"), "fix login");
+  assert.equal(stripProject("shop fix login", "shop"), "fix login");
+  assert.equal(stripProject("shopping list", "shop"), "shopping list");
+  assert.equal(stripProject("shop", "shop"), "shop");
+  assert.equal(stripProject("shop fix", ""), "shop fix");
+});
+
+test("firstmateName gives <project> · <task title>, null when the home doesn't know it", () => {
+  const tasks = parseBacklog(backlog);
+  assert.equal(firstmateName("fm-shop-audit", tasks), "shop · 기반 점검 결함 8건 수정");
+  assert.equal(firstmateName("fm-own-work", tasks), "Tidy the notes · weekly");
+  const long = firstmateName("fm-shop-0405", tasks);
+  assert.ok(long.startsWith("shop · 04-05(신) 결제 승인 계약 PR-S1:"));
+  assert.equal(Array.from(long).length, MAX_NAME);
+  assert.equal(firstmateName("fm-unknown-task", tasks), null);
 });
 
 test("generalName prefers the terminal name, then a meaningful title", () => {
@@ -59,6 +81,14 @@ test("generalName prefers the terminal name, then a meaningful title", () => {
   assert.equal(generalName({ title: "2.1.318" }, { program: claude }), null);
   assert.equal(generalName({ title: "~/src/app" }, { program: claude }), null);
   assert.equal(generalName({ title: "" }, { program: claude }), null);
+});
+
+test("generalName never uses a bare terminal address", () => {
+  assert.equal(generalName({ address: "t1j", name: "t1j", title: "t1j" }, { program: claude }), null);
+  assert.equal(generalName({ address: "t1j", title: "t1j" }, { terminal: "t1j", program: claude }), null);
+  assert.equal(generalName(null, { terminal: "vps/t7", title: "vps/t7", program: claude }), null);
+  assert.equal(generalName({ address: "t2", title: "t1k" }, { program: claude }), null);
+  assert.equal(generalName({ address: "t1j", title: "test the parser" }, { program: claude }), "test the parser");
 });
 
 function world() {
@@ -83,7 +113,7 @@ function world() {
     { address: "t3", labels: {}, title: "zsh" },
     { address: "t4", labels: {}, title: "Refactor auth" },
     { address: "t5", labels: {}, title: "Plan the release" },
-    { address: "t6", labels: { "firstmate.task": "fm-no-repo" }, title: "Other" },
+    { address: "t6", labels: { "firstmate.task": "fm-own-work" }, title: "Other" },
   ];
   return { spaces, panes, terminals };
 }
@@ -106,21 +136,21 @@ test("a terminal with a Firstmate label counts before it reports a status", () =
 
 test("reconcile names unnamed agent tabs and never touches a person's name", () => {
   const { spaces, panes, terminals } = world();
-  const tasks = parseFirstmateTasks(summary);
+  const tasks = parseBacklog(backlog);
   const tabs = agentTabs(spaces, panes, terminals);
   const out = reconcile(tabs, { tasks, now: 1000 });
   assert.deepEqual(out.renames, [
-    { id: "a", name: "herdr-tab-namer · name agent tabs" },
-    { id: "d", name: "Audit the login flow" },
+    { id: "a", name: firstmateName("fm-tab-namer", tasks) },
+    { id: "d", name: "Tidy the notes · weekly" },
   ]);
   assert.deepEqual(Object.keys(out.pending).sort(), ["a", "d"]);
   assert.deepEqual(out.owned, {});
 });
 
 test("reconcile waits for a sent rename, then owns it once it shows", () => {
-  const tasks = parseFirstmateTasks(summary);
+  const tasks = parseBacklog(backlog);
   const tab = (name, named) => ({ id: "a", name, named, terminal: { labels: { "firstmate.task": "fm-tab-namer" } }, pane: {} });
-  const want = "herdr-tab-namer · name agent tabs";
+  const want = firstmateName("fm-tab-namer", tasks);
   const first = reconcile([tab("1", false)], { tasks, now: 0 });
   assert.equal(first.renames.length, 1);
   const waiting = reconcile([tab("1", false)], { tasks, now: 1000, pending: first.pending });
@@ -148,4 +178,16 @@ test("reconcile updates its own names and lets go of names a person changed", ()
 test("reconcile drops ownership of closed tabs only", () => {
   const out = reconcile([], { owned: { a: "x", gone: "y" }, tabIds: new Set(["a"]) });
   assert.deepEqual(out.owned, { a: "x" });
+});
+
+test("a task the home doesn't know is named by its id, but never over a better name", () => {
+  const tab = (name, named) => ({ id: "a", name, named, terminal: { labels: { "firstmate.task": "fm-new-task" } }, pane: {} });
+  const fresh = reconcile([tab("1", false)], { now: 0 });
+  assert.deepEqual(fresh.renames, [{ id: "a", name: "new-task" }]);
+  const kept = reconcile([tab("app · New task", true)], { owned: { a: "app · New task" }, now: 0 });
+  assert.deepEqual(kept.renames, [], "an unreadable backlog keeps the name");
+  assert.deepEqual(kept.owned, { a: "app · New task" });
+  const tasks = new Map([["new-task", { project: "app", title: "New task" }]]);
+  const upgraded = reconcile([tab("new-task", true)], { owned: { a: "new-task" }, tasks, now: 0 });
+  assert.deepEqual(upgraded.renames, [{ id: "a", name: "app · New task" }], "the id gives way once the title is known");
 });

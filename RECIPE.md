@@ -29,16 +29,23 @@ the namer is on, so when it's off you see it and turn it on.
   carries a `firstmate.task` label. Tabs with only shells don't count and aren't named.
 - Every 4 s while on, each unnamed agent tab gets a name with `tab.rename {id, name}`.
   The name comes from the tab's Firstmate terminal if it has one, else its first agent:
-  1. `firstmate.task=fm-<id>` label: `<project> · <task title>` from
-     `<firstmate_home>/state/home-summary.json` (`active_children[]`: `repo` is the
-     project, `name` the title with a leading `<repo>:` removed). No home configured,
-     or the task isn't listed: the task id (`<id>`). The summary is read at most every
-     15 s, sooner (4 s) when a task id it doesn't know appears; tasks it knew are kept
-     after they leave it.
+  1. `firstmate.task=fm-<id>` label: `<project> · <task title>` from the row
+     `- [ ] <id> - <title> ... (repo: <project>) (kind: ...) ...` (or `- [x]`, or
+     `- **<id>** - ...`) in `<firstmate_home>/data/backlog.md`, any section. The title is
+     the rest of the row without links, `blocked-by: <id>` notes (and a `- reason` after
+     one), the trailing `(repo|kind|priority|hold...: ...)` / `(since|merged|reported|done
+     ...)` groups, and a trailing `data/.../report.md` or `local main`, as Firstmate's
+     `bin/fm-fleet-snapshot.sh` reads it. `(repo: -)` means no project. A leading
+     `<project>:` or `<project> ` is removed from the title. No home configured, or the
+     task isn't listed: the task id (`<id>`), which never replaces a name the mod already
+     gave. The backlog is read at most every 15 s, sooner (4 s) when a task id it doesn't
+     know appears; tasks it knew are kept after they leave it.
   2. The terminal's `name` (from `terminals()`).
-  3. The terminal's `title`, leading non-letter glyphs (spinners, `✳`) removed. Skipped
-     when it equals the program's name or key, is a version (`2.1.318`), or starts with
-     `/` or `~`.
+  3. The terminal's `title`, else the pane's, leading non-letter glyphs (spinners, `✳`)
+     removed. Skipped when it equals the program's name or key, is a version
+     (`2.1.318`), starts with `/` or `~`, or is a terminal address (`t1j`, `vps/t7`;
+     Herdr shows the address for a terminal with an empty title). The `name` is skipped
+     when it is an address too.
   Names are cut to 40 characters (code points), whitespace collapsed, ending in `…`.
 - The names the mod set are remembered per tab id. A tab showing one of them is the mod's:
   if its source changes (a new title), the tab is renamed to follow. A tab showing any
@@ -46,7 +53,7 @@ the namer is on, so when it's off you see it and turn it on.
   A tab renamed back to its number (`""`) is unnamed again and gets named again.
 - A rename the app hasn't shown yet is waited for up to 5 s before it's sent again, so
   a slow rename is neither sent every tick nor taken for a person's name.
-- Click while on: renames now (pending renames are resent, the summary is re-read).
+- Click while on: renames now (pending renames are resent, the backlog is re-read).
   Click while off: turns it on and renames now. Right-click: turns it off (or on).
   Off stops renaming; names already given stay.
 - Presses on the button don't drag the window (`stop_propagation` on mouse down).
@@ -58,7 +65,7 @@ the namer is on, so when it's off you see it and turn it on.
   "window_drag": true, "content": { "mod": "herdr-tab-namer", "props": { "firstmate_home": "~/firstmate" } } }`.
   `firstmate_home` is optional; `~` expands with `home()`.
 - `mods/herdr-tab-namer/`: `mod.json` (`{ "place": "none", "title": "Tab namer" }`),
-  `main.js` (the view: timer, summary read, button), `naming.js` (pure naming rules,
+  `main.js` (the view: timer, backlog read, button), `naming.js` (pure naming rules,
   no imports), `jsconfig.json` (`checkJs`, as Herdr writes it).
 - `herdr`: `spaces()` (tab `id`, `name`, `named`), `panes()` (`tab`, `terminal`, `status`,
   `program`, `title`), `terminals()` (`address`, `labels`, `name`, `title`), `theme()`,
@@ -67,7 +74,7 @@ the namer is on, so when it's off you see it and turn it on.
   name the mod set), `run("tab.rename", { id, name })`.
 - gpui-kit: `cx.timer.every(4000, ...)`, `cx.spawn`, `.tooltip()`, `h_flex` from gpui-base.
 - No programs run, no network. It reads one file outside its folder: the Firstmate
-  summary, only when `firstmate_home` is set.
+  backlog, only when `firstmate_home` is set.
 
 ## Watch out
 
@@ -80,8 +87,9 @@ the namer is on, so when it's off you see it and turn it on.
 - Ownership is pruned when a tab id disappears from `spaces()`. A remote machine that is
   briefly unavailable drops its tabs, so the mod forgets those names: they stay, but
   become a person's names and stop following their source.
-- The Firstmate summary truncates long titles itself (ending in `…`) before this mod's
-  40-character cut.
+- Don't take titles from Firstmate's `state/home-summary.json`: its `active_children`
+  lists only the tasks it counts as active at that moment, so other live task tabs fall
+  back to bare ids. The backlog has every task.
 - On Windows and Linux the tab bar draws the window buttons at its right end, so the
   button sits right of the close button; put the block before the tab bar if that bothers.
 - Herdr has no command to move a tab to another space, so the mod only names tabs.
@@ -92,7 +100,8 @@ the namer is on, so when it's off you see it and turn it on.
 - With the block in the top bar and an unnamed tab running Claude Code on a task, within
   4 s the tab shows the agent's title and the button reads `Tabs 1/1` with a `done` dot.
 - A terminal started with `--label firstmate.task=fm-<id>` gets `<project> · <title>` when
-  `firstmate_home` points at a home whose summary lists `<id>`, else `<id>`.
+  `firstmate_home` points at a home whose backlog lists `<id>`, else `<id>`.
+- A tab whose agent terminal has no title stays unnamed rather than showing `t1j`.
 - A tab renamed by hand keeps its name across ticks and restarts.
 - Right-click turns the button `blocked`-colored with a hollow dot and stops renaming; a
   click turns it back on. The state is the same after restarting Herdr.

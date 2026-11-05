@@ -1,7 +1,7 @@
 import { View, div } from "gpui-kit";
 import { h_flex } from "gpui-base";
 import { spaces, panes, terminals, theme, run, shared, setShared, props, readTextFile, home } from "herdr";
-import { FIRSTMATE_TASK, agentTabs, countNamed, parseFirstmateTasks, reconcile, taskId } from "./naming.js";
+import { FIRSTMATE_TASK, agentTabs, countNamed, parseBacklog, reconcile, taskId } from "./naming.js";
 
 /** @typedef {import("gpui-kit").Context} Context */
 /** @typedef {import("./naming.js").AgentTab} AgentTab */
@@ -14,7 +14,7 @@ const OWNED = "herdr-tab-namer.owned";
 // Mod timers keep running while hidden, so the reconcile tick stays gentle. Herdr's
 // live data re-renders the count on its own; only renaming waits for the tick.
 const TICK_MS = 4000;
-const SUMMARY_MS = 15000;
+const BACKLOG_MS = 15000;
 
 /** The Firstmate home from the layout's props (`firstmate_home`), with `~` expanded. */
 function firstmateHome() {
@@ -38,7 +38,7 @@ export default class TabNamer extends View {
     this.pending = {};
     /** @type {import("./naming.js").Tasks} */
     this.tasks = new Map();
-    this.summaryAt = 0;
+    this.backlogAt = 0;
     this.loading = false;
     cx.timer.every(TICK_MS, (cx) => this.tick(cx, false));
     this.tick(cx, false);
@@ -59,9 +59,9 @@ export default class TabNamer extends View {
     const homeDir = firstmateHome();
     const labels = tabs.map((t) => t.terminal?.labels?.[FIRSTMATE_TASK]).filter(Boolean);
     if (homeDir && labels.length) {
-      const age = Date.now() - this.summaryAt;
+      const age = Date.now() - this.backlogAt;
       const unknown = labels.some((label) => !this.tasks.has(taskId(label)));
-      if (force || age > SUMMARY_MS || (unknown && age > TICK_MS)) this.loadSummary(cx, homeDir);
+      if (force || age > BACKLOG_MS || (unknown && age > TICK_MS)) this.loadBacklog(cx, homeDir);
     }
     this.apply(tabs, force);
   }
@@ -70,18 +70,18 @@ export default class TabNamer extends View {
    * @param {Context} cx
    * @param {string} homeDir
    */
-  loadSummary(cx, homeDir) {
+  loadBacklog(cx, homeDir) {
     if (this.loading) return;
     this.loading = true;
-    this.summaryAt = Date.now();
+    this.backlogAt = Date.now();
     cx.spawn(async (cx) => {
       /** @type {string | null} */
       let text = null;
-      try { text = await readTextFile(`${homeDir}/state/home-summary.json`); } catch { /* unreadable: keep what we know */ }
+      try { text = await readTextFile(`${homeDir}/data/backlog.md`); } catch { /* unreadable: keep what we know */ }
       this.loading = false;
-      // Known tasks are kept: one that leaves the summary (finished) keeps its name while its
-      // terminal lives, and a missing or unreadable summary changes nothing.
-      const parsed = parseFirstmateTasks(text);
+      // Known tasks are kept: one that leaves the backlog keeps its name while its terminal
+      // lives, and a missing or unreadable backlog changes nothing.
+      const parsed = parseBacklog(text);
       if (parsed) this.tasks = new Map([...this.tasks, ...parsed]);
       if (this.enabled()) this.apply(currentAgentTabs(), false);
       cx.notify();
