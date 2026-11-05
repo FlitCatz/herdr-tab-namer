@@ -94,6 +94,9 @@ the namer is on, so when it's off you see it and turn it on.
 - Don't take titles from Firstmate's `state/home-summary.json`: its `active_children`
   lists only the tasks it counts as active at that moment, so other live task tabs fall
   back to bare ids. The backlog has every task.
+- `Tabs n/m` counts agent tabs in every space, not just the shown one, while the tab bar
+  shows only the shown space's tabs: a bar with three named tabs can read `Tabs 6/7` (the
+  preview does), because other spaces hold more agent tabs and one is unnamed.
 - Two copies pointed at different homes (a second layout, a demo) don't undo each other:
   to each, the other's tasks are unknown, and an unknown task's id never replaces a name.
 - On Windows and Linux the tab bar draws the window buttons at its right end, so the
