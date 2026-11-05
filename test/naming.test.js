@@ -163,6 +163,19 @@ test("reconcile waits for a sent rename, then owns it once it shows", () => {
   assert.equal(lost.renames.length, 1, "a rename that never showed is sent again");
 });
 
+test("a click keeps a landed rename owned and resends one still pending", () => {
+  const tab = (name, named) => ({ id: "a", name, named, terminal: { labels: { "firstmate.task": "fm-new-task" } }, pane: {} });
+  const sent = reconcile([tab("1", false)], { now: 0 });
+  const clicked = reconcile([tab("new-task", true)], { pending: sent.pending, now: 2000, force: true });
+  assert.deepEqual(clicked.owned, { a: "new-task" }, "a rename that landed is still this mod's own");
+  const tasks = new Map([["new-task", { project: "app", title: "New task" }]]);
+  const later = reconcile([tab("new-task", true)], { owned: clicked.owned, pending: clicked.pending, tasks, now: 6000 });
+  assert.deepEqual(later.renames, [{ id: "a", name: "app · New task" }], "the id still gives way once the title is known");
+  const resent = reconcile([tab("1", false)], { pending: sent.pending, now: 2000, force: true });
+  assert.deepEqual(resent.renames, [{ id: "a", name: "new-task" }], "a click resends a rename that hasn't shown yet");
+  assert.deepEqual(resent.pending, { a: { name: "new-task", at: 2000 } });
+});
+
 test("reconcile updates its own names and lets go of names a person changed", () => {
   const tab = (name, title) => ({ id: "a", name, named: true, terminal: { title }, pane: { program: claude } });
   const moved = reconcile([tab("Old task", "New task")], { owned: { a: "Old task" }, now: 0 });

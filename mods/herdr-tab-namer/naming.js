@@ -238,11 +238,12 @@ export function countNamed(tabs) {
  * tabs are free to name. `pending` holds renames sent but not yet seen, so a slow one is
  * neither mistaken for a person's name nor sent on every tick.
  * Returns the renames to run and the next `owned` / `pending`.
- * `tabIds` (every tab that exists) prunes ownership of closed tabs.
+ * `tabIds` (every tab that exists) prunes ownership of closed tabs. `force` (a click)
+ * sends a wanted rename again even while the same one is still pending.
  * @param {AgentTab[]} tabs
- * @param {{ owned?: Record<string, string>, pending?: Record<string, Sent>, tasks?: Tasks, now?: number, tabIds?: Set<string> | null }} state
+ * @param {{ owned?: Record<string, string>, pending?: Record<string, Sent>, tasks?: Tasks, now?: number, tabIds?: Set<string> | null, force?: boolean }} state
  */
-export function reconcile(tabs, { owned = {}, pending = {}, tasks = new Map(), now = 0, tabIds = null }) {
+export function reconcile(tabs, { owned = {}, pending = {}, tasks = new Map(), now = 0, tabIds = null, force = false }) {
   /** @type {Record<string, string>} */
   const nextOwned = {};
   /** @type {Record<string, Sent>} */
@@ -263,7 +264,7 @@ export function reconcile(tabs, { owned = {}, pending = {}, tasks = new Map(), n
     // A bare task id never replaces a name this mod already gave (a backlog that couldn't
     // be read, or another copy pointed at another home).
     if (want.fallback && tab.named) continue;
-    if (nextPending[tab.id]?.name === want.name) continue;
+    if (!force && nextPending[tab.id]?.name === want.name) continue;
     renames.push({ id: tab.id, name: want.name });
     nextPending[tab.id] = { name: want.name, at: now };
   }
