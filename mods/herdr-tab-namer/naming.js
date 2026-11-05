@@ -233,10 +233,11 @@ export function countNamed(tabs) {
 }
 
 /**
- * Decides which tabs to rename. `owned` maps a tab id to the name this mod set; a tab
- * whose name is anything else was named by a person and is never touched. Unnamed agent
- * tabs are free to name. `pending` holds renames sent but not yet seen, so a slow one is
- * neither mistaken for a person's name nor sent on every tick.
+ * Decides which tabs to rename. `owned` maps a tab id to the name this mod set, recorded
+ * when the rename is sent so it survives a restart before the next tick; a tab whose name
+ * is anything else was named by a person and is never touched. Unnamed agent tabs are
+ * free to name. `pending` holds renames sent but not yet seen, so a slow one is neither
+ * mistaken for a person's name nor sent on every tick.
  * Returns the renames to run and the next `owned` / `pending`.
  * `tabIds` (every tab that exists) prunes ownership of closed tabs. `force` (a click)
  * sends a wanted rename again even while the same one is still pending.
@@ -266,6 +267,7 @@ export function reconcile(tabs, { owned = {}, pending = {}, tasks = new Map(), n
     if (want.fallback && tab.named) continue;
     if (!force && nextPending[tab.id]?.name === want.name) continue;
     renames.push({ id: tab.id, name: want.name });
+    nextOwned[tab.id] = want.name;
     nextPending[tab.id] = { name: want.name, at: now };
   }
   return { renames, owned: nextOwned, pending: nextPending };

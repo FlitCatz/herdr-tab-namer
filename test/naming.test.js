@@ -144,7 +144,7 @@ test("reconcile names unnamed agent tabs and never touches a person's name", () 
     { id: "d", name: "Tidy the notes · weekly" },
   ]);
   assert.deepEqual(Object.keys(out.pending).sort(), ["a", "d"]);
-  assert.deepEqual(out.owned, {});
+  assert.deepEqual(out.owned, { a: firstmateName("fm-tab-namer", tasks), d: "Tidy the notes · weekly" });
 });
 
 test("reconcile waits for a sent rename, then owns it once it shows", () => {
@@ -174,6 +174,19 @@ test("a click keeps a landed rename owned and resends one still pending", () => 
   const resent = reconcile([tab("1", false)], { pending: sent.pending, now: 2000, force: true });
   assert.deepEqual(resent.renames, [{ id: "a", name: "new-task" }], "a click resends a rename that hasn't shown yet");
   assert.deepEqual(resent.pending, { a: { name: "new-task", at: 2000 } });
+});
+
+test("a rename is owned as it is sent, so a restart before the next tick keeps it", () => {
+  const tab = (name, named) => ({ id: "a", name, named, terminal: { labels: { "firstmate.task": "fm-new-task" } }, pane: {} });
+  const sent = reconcile([tab("1", false)], { now: 0 });
+  assert.deepEqual(sent.owned, { a: "new-task" });
+  const tasks = new Map([["new-task", { project: "app", title: "New task" }]]);
+  const restarted = reconcile([tab("new-task", true)], { owned: sent.owned, tasks, now: 4000 });
+  assert.deepEqual(restarted.renames, [{ id: "a", name: "app · New task" }], "the id still gives way after a restart");
+  assert.deepEqual(restarted.owned, { a: "app · New task" });
+  const person = reconcile([tab("Mine", true)], { owned: sent.owned, tasks, now: 4000 });
+  assert.deepEqual(person.renames, [], "a name other than the one sent is a person's");
+  assert.deepEqual(person.owned, {});
 });
 
 test("reconcile updates its own names and lets go of names a person changed", () => {

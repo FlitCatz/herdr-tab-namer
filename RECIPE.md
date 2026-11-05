@@ -47,7 +47,8 @@ the namer is on, so when it's off you see it and turn it on.
      Herdr shows the address for a terminal with an empty title). The `name` is skipped
      when it is an address too.
   Names are cut to 40 characters (code points), whitespace collapsed, ending in `…`.
-- The names the mod set are remembered per tab id. A tab showing one of them is the mod's:
+- The names the mod set are remembered per tab id, saved as each rename is sent so a
+  restart right after a rename keeps it. A tab showing one of them is the mod's:
   if its source changes (a new title), the tab is renamed to follow. A tab showing any
   other name was named by a person and is never renamed; the mod forgets it.
   A tab renamed back to its number (`""`) is unnamed again and gets named again.
