@@ -51,6 +51,10 @@ the namer is on, so when it's off you see it and turn it on.
   if its source changes (a new title), the tab is renamed to follow. A tab showing any
   other name was named by a person and is never renamed; the mod forgets it.
   A tab renamed back to its number (`""`) is unnamed again and gets named again.
+- A name never gets worse. When a tab's source has nothing to say any more (its title
+  turns generic or empty), the tab keeps the name it has. A bare task id (the fallback
+  for a task the backlog doesn't list, or a backlog that can't be read) only names a tab
+  that has no name; once the task's title is known, the id gives way to it.
 - A rename the app hasn't shown yet is waited for up to 5 s before it's sent again, so
   a slow rename is neither sent every tick nor taken for a person's name.
 - Click while on: renames now (pending renames are resent, the backlog is re-read).
@@ -90,6 +94,8 @@ the namer is on, so when it's off you see it and turn it on.
 - Don't take titles from Firstmate's `state/home-summary.json`: its `active_children`
   lists only the tasks it counts as active at that moment, so other live task tabs fall
   back to bare ids. The backlog has every task.
+- Two copies pointed at different homes (a second layout, a demo) don't undo each other:
+  to each, the other's tasks are unknown, and an unknown task's id never replaces a name.
 - On Windows and Linux the tab bar draws the window buttons at its right end, so the
   button sits right of the close button; put the block before the tab bar if that bothers.
 - Herdr has no command to move a tab to another space, so the mod only names tabs.
@@ -101,7 +107,11 @@ the namer is on, so when it's off you see it and turn it on.
   4 s the tab shows the agent's title and the button reads `Tabs 1/1` with a `done` dot.
 - A terminal started with `--label firstmate.task=fm-<id>` gets `<project> · <title>` when
   `firstmate_home` points at a home whose backlog lists `<id>`, else `<id>`.
+- A task whose backlog title starts with its project (`shop: x` or `shop x`, repo `shop`)
+  shows `shop · x`, not `shop · shop x`.
 - A tab whose agent terminal has no title stays unnamed rather than showing `t1j`.
+- With the backlog renamed away, task tabs already named `<project> · <title>` keep their
+  names; a new task tab gets its id, and the full name once the backlog is back.
 - A tab renamed by hand keeps its name across ticks and restarts.
 - Right-click turns the button `blocked`-colored with a hollow dot and stops renaming; a
   click turns it back on. The state is the same after restarting Herdr.

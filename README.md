@@ -14,6 +14,8 @@ button in the window's top bar: the button shows how many agent tabs are named
   Tabs with only plain shells are left alone.
 - It never overwrites a name a person gave: it remembers which names it set itself, and
   only updates those. Rename a tab by hand and the namer leaves it for good.
+- Its own names only get better: a tab keeps its name when the source goes quiet, and a
+  bare task id never replaces a name.
 - Names are at most 40 characters, cut with `…`.
 - **On** (the default): a filled dot in the theme's `done` color. Click to re-apply names now.
   Right-click to turn it off.
