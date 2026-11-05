@@ -10,6 +10,7 @@
 /** @typedef {Map<string, Task>} Tasks */
 /** @typedef {Tab & { pane: Pane, terminal: Terminal | null }} AgentTab */
 /** @typedef {{ name: string, at: number }} Sent */
+/** @typedef {string | { name: string, prev: string }} Owned */
 
 /** Longest tab name the mod writes, in characters (code points). */
 export const MAX_NAME = 40;
@@ -234,29 +235,34 @@ export function countNamed(tabs) {
 
 /**
  * Decides which tabs to rename. `owned` maps a tab id to the name this mod set, recorded
- * when the rename is sent so it survives a restart before the next tick; a tab whose name
- * is anything else was named by a person and is never touched. Unnamed agent tabs are
+ * when the rename is sent so it survives a restart before the next tick. Until that name
+ * shows, the entry also keeps the name it replaces (`{ name, prev }`), so a tab still
+ * showing it stays the mod's and the rename is sent again. A tab whose name is anything
+ * else was named by a person and is never touched. Unnamed agent tabs are
  * free to name. `pending` holds renames sent but not yet seen, so a slow one is neither
  * mistaken for a person's name nor sent on every tick.
  * Returns the renames to run and the next `owned` / `pending`.
  * `tabIds` (every tab that exists) prunes ownership of closed tabs. `force` (a click)
  * sends a wanted rename again even while the same one is still pending.
  * @param {AgentTab[]} tabs
- * @param {{ owned?: Record<string, string>, pending?: Record<string, Sent>, tasks?: Tasks, now?: number, tabIds?: Set<string> | null, force?: boolean }} state
+ * @param {{ owned?: Record<string, Owned>, pending?: Record<string, Sent>, tasks?: Tasks, now?: number, tabIds?: Set<string> | null, force?: boolean }} state
  */
 export function reconcile(tabs, { owned = {}, pending = {}, tasks = new Map(), now = 0, tabIds = null, force = false }) {
-  /** @type {Record<string, string>} */
+  /** @type {Record<string, { name: string, prev?: string }>} */
   const nextOwned = {};
   /** @type {Record<string, Sent>} */
   const nextPending = {};
-  for (const [id, name] of Object.entries(owned)) if (!tabIds || tabIds.has(id)) nextOwned[id] = name;
+  for (const [id, entry] of Object.entries(owned)) {
+    if (!tabIds || tabIds.has(id)) nextOwned[id] = typeof entry === "string" ? { name: entry } : entry;
+  }
   /** @type {{ id: string, name: string }[]} */
   const renames = [];
   for (const tab of tabs) {
     const sent = pending[tab.id];
-    if (tab.named && sent && tab.name === sent.name) nextOwned[tab.id] = sent.name;
+    if (tab.named && (tab.name === sent?.name || tab.name === nextOwned[tab.id]?.name)) nextOwned[tab.id] = { name: tab.name };
     else if (sent && now - sent.at < PENDING_MS) nextPending[tab.id] = sent;
-    if (tab.named && tab.name !== nextOwned[tab.id] && !nextPending[tab.id]) {
+    const mine = nextOwned[tab.id];
+    if (tab.named && tab.name !== mine?.name && tab.name !== mine?.prev && !nextPending[tab.id]) {
       delete nextOwned[tab.id]; // a person's name
       continue;
     }
@@ -267,8 +273,11 @@ export function reconcile(tabs, { owned = {}, pending = {}, tasks = new Map(), n
     if (want.fallback && tab.named) continue;
     if (!force && nextPending[tab.id]?.name === want.name) continue;
     renames.push({ id: tab.id, name: want.name });
-    nextOwned[tab.id] = want.name;
+    nextOwned[tab.id] = tab.named ? { name: want.name, prev: tab.name } : { name: want.name };
     nextPending[tab.id] = { name: want.name, at: now };
   }
-  return { renames, owned: nextOwned, pending: nextPending };
+  /** @type {Record<string, Owned>} */
+  const savedOwned = {};
+  for (const [id, { name, prev }] of Object.entries(nextOwned)) savedOwned[id] = prev === undefined ? name : { name, prev };
+  return { renames, owned: savedOwned, pending: nextPending };
 }

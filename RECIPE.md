@@ -48,7 +48,9 @@ the namer is on, so when it's off you see it and turn it on.
      when it is an address too.
   Names are cut to 40 characters (code points), whitespace collapsed, ending in `…`.
 - The names the mod set are remembered per tab id, saved as each rename is sent so a
-  restart right after a rename keeps it. A tab showing one of them is the mod's:
+  restart right after a rename keeps it. Until a new name shows, the name it replaces is
+  kept too, so a tab still showing that one stays the mod's and the rename is sent
+  again. A tab showing one of them is the mod's:
   if its source changes (a new title), the tab is renamed to follow. A tab showing any
   other name was named by a person and is never renamed; the mod forgets it.
   A tab renamed back to its number (`""`) is unnamed again and gets named again.
@@ -76,7 +78,7 @@ the namer is on, so when it's off you see it and turn it on.
   `program`, `title`), `terminals()` (`address`, `labels`, `name`, `title`), `theme()`,
   `props()`, `home()`, `readTextFile()`, `shared()` / `setShared()` (keys
   `herdr-tab-namer.enabled`, absent means on, and `herdr-tab-namer.owned`, tab id to the
-  name the mod set), `run("tab.rename", { id, name })`.
+  name the mod set, or `{ name, prev }` while a rename hasn't shown), `run("tab.rename", { id, name })`.
 - gpui-kit: `cx.timer.every(4000, ...)`, `cx.spawn`, `.tooltip()`, `h_flex` from gpui-base.
 - No programs run, no network. It reads one file outside its folder: the Firstmate
   backlog, only when `firstmate_home` is set.

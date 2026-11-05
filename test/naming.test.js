@@ -183,10 +183,29 @@ test("a rename is owned as it is sent, so a restart before the next tick keeps i
   const tasks = new Map([["new-task", { project: "app", title: "New task" }]]);
   const restarted = reconcile([tab("new-task", true)], { owned: sent.owned, tasks, now: 4000 });
   assert.deepEqual(restarted.renames, [{ id: "a", name: "app · New task" }], "the id still gives way after a restart");
-  assert.deepEqual(restarted.owned, { a: "app · New task" });
+  assert.deepEqual(restarted.owned, { a: { name: "app · New task", prev: "new-task" } });
   const person = reconcile([tab("Mine", true)], { owned: sent.owned, tasks, now: 4000 });
   assert.deepEqual(person.renames, [], "a name other than the one sent is a person's");
   assert.deepEqual(person.owned, {});
+});
+
+test("a tab still showing the name a rename replaces stays the mod's", () => {
+  const tab = (name, title) => ({ id: "a", name, named: true, terminal: { title }, pane: { program: claude } });
+  const sent = reconcile([tab("Old task", "New task")], { owned: { a: "Old task" }, now: 0 });
+  assert.deepEqual(sent.renames, [{ id: "a", name: "New task" }]);
+  assert.deepEqual(sent.owned, { a: { name: "New task", prev: "Old task" } });
+  const lost = reconcile([tab("Old task", "New task")], { owned: sent.owned, pending: sent.pending, now: PENDING_MS + 1 });
+  assert.deepEqual(lost.renames, [{ id: "a", name: "New task" }], "a re-rename that never showed is sent again");
+  assert.deepEqual(lost.owned, { a: { name: "New task", prev: "Old task" } });
+  const restarted = reconcile([tab("Old task", "New task")], { owned: sent.owned, now: 1000 });
+  assert.deepEqual(restarted.renames, [{ id: "a", name: "New task" }], "a restart before it shows keeps the tab");
+  const landed = reconcile([tab("New task", "New task")], { owned: sent.owned, now: 1000 });
+  assert.deepEqual(landed.owned, { a: "New task" }, "the replaced name is dropped once the new one shows");
+  const person = reconcile([tab("Mine", "New task")], { owned: sent.owned, now: 1000 });
+  assert.deepEqual(person.renames, []);
+  assert.deepEqual(person.owned, {}, "any other name is a person's");
+  const after = reconcile([tab("Old task", "New task")], { owned: landed.owned, now: 2000 });
+  assert.deepEqual(after.owned, {}, "the replaced name is a person's once the new one has shown");
 });
 
 test("reconcile updates its own names and lets go of names a person changed", () => {

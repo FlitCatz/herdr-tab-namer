@@ -93,7 +93,7 @@ export default class TabNamer extends View {
    * @param {boolean} force
    */
   apply(tabs, force) {
-    const owned = /** @type {Record<string, string>} */ (shared(OWNED) ?? {});
+    const owned = /** @type {Record<string, import("./naming.js").Owned>} */ (shared(OWNED) ?? {});
     const tabIds = new Set(spaces().flatMap((s) => s.tabs.map((t) => t.id)));
     const next = reconcile(tabs, { owned, pending: this.pending, tasks: this.tasks, now: Date.now(), tabIds, force });
     for (const r of next.renames) run("tab.rename", { id: r.id, name: r.name });
