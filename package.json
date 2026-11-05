@@ -1,0 +1,8 @@
+{
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "check": "herdr-app check mods/herdr-tab-namer && tsc -p mods/herdr-tab-namer/jsconfig.json"
+  }
+}
