@@ -36,7 +36,7 @@ export function truncate(text, max = MAX_NAME) {
  * @param {unknown} title
  */
 export function cleanTitle(title) {
-  return String(title ?? "").replace(/^[^\p{L}\p{N}([{"'`]+/u, "").replace(/\s+/g, " ").trim();
+  return String(title ?? "").replace(/^[^\p{L}\p{N}([{"'`~/]+/u, "").replace(/\s+/g, " ").trim();
 }
 
 /**
@@ -165,9 +165,8 @@ export function generalName(terminal, pane) {
   const address = terminal?.address ?? pane?.terminal;
   const name = String(terminal?.name ?? "").trim();
   if (name && !isAddress(name, address)) return truncate(name);
-  const raw = String(terminal?.title || pane?.title || "").trim();
-  if (/^[~/]/.test(raw)) return null; // a shell showing its folder
-  const title = cleanTitle(raw);
+  const title = cleanTitle(terminal?.title || pane?.title);
+  if (/^[~/]/.test(title)) return null; // a shell showing its folder
   if (!title || isAddress(title, address) || isGenericTitle(title, pane?.program)) return null;
   return truncate(title);
 }

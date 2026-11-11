@@ -10,8 +10,9 @@ button in the window's top bar: the button shows how many agent tabs are named
 ## What it does
 
 - Every few seconds it looks at tabs that run an agent (a terminal whose program reports a
-  status, or one Firstmate labelled) and gives each unnamed one a name with `tab.rename`.
-  Tabs with only plain shells are left alone.
+  status or is marked as an agent with `program.agent === true`, or one Firstmate labelled)
+  and gives each unnamed one a name with `tab.rename`. Tabs with only plain shells are left
+  alone.
 - It never overwrites a name a person gave: it remembers which names it set itself, and
   only updates those. Rename a tab by hand and the namer leaves it for good.
 - Its own names only get better: a tab keeps its name when the source goes quiet, and a
@@ -19,26 +20,33 @@ button in the window's top bar: the button shows how many agent tabs are named
 - Names are at most 40 characters, cut with `…`.
 - **On** (the default): a filled dot in the theme's `done` color. Click to re-apply names now.
   Right-click to turn it off.
-- **Off**: border, text and a hollow dot in the theme's `blocked` color. Agent tabs keep
-  their numbers. Click to turn it on.
+- **Off**: border, text and a hollow dot in the theme's `blocked` color. New renames stop:
+  unnamed agent tabs keep their numbers, while tabs already named keep their existing names.
+  Click to turn it on and apply names at once, or right-click to toggle it back on (names
+  refresh on the next timer tick).
 - On/off and the names it set are kept in Herdr's shared state, so they survive restarts.
 
 ### Where names come from
 
 For each agent tab, the first source that has something:
 
-1. **Firstmate task.** A terminal carrying the `firstmate.task` label is a Firstmate task.
-   When the layout gives the button a `firstmate_home`, the name is
+1. **Firstmate task.** A terminal carrying the `firstmate.task` label is a Firstmate task;
+   a leading `fm-` prefix on the label (`firstmate.task=fm-<id>`) is stripped to get the
+   task id. When the layout gives the button a `firstmate_home`, the name is
    `<project> · <task title>` from that home's backlog (`data/backlog.md`: the row's
-   `(repo: ...)` and title, the same ones Firstmate's Board shows). A title that starts with
+   `(repo: ...)` and title, the same ones Firstmate's Board shows), or `<task title>` alone
+   when the row has no project (`(repo: -)` or no `repo` field). A title that starts with
    its project (`my-app: ...`, `my-app ...`) loses that prefix, so the project shows once.
    Without a home, or for a task the backlog doesn't list, the name is the task id, and an
    id never replaces a better name the namer already gave.
-2. **Terminal name.** The name the terminal was started with (`hc run --name ...`).
-3. **Terminal title.** The title the agent set (Claude Code and Codex set one that says what
-   they're working on), without leading spinner glyphs. Titles that only name the
-   program (`Claude Code`), a version (`2.1.318`), a folder (`~/src`) or a bare terminal
-   address (`t1j`, which Herdr shows for a terminal with no title) don't count.
+2. **Terminal name.** The name the terminal was started with (`hc run --name ...`), unless
+   it is a bare terminal address (`t1j`, `vps/t7`).
+3. **Terminal title.** The terminal's title (`terminal.title`), or the pane's title
+   (`pane.title`) if the terminal has none (Claude Code and Codex set a title that says what
+   they're working on), without leading spinner glyphs. Titles that are only the
+   program's name or key (`Claude Code`, `claude`), a version (`2.1.318`), a folder
+   (`~/src`, `/tmp`, with or without a leading spinner) or a bare terminal address (`t1j`,
+   `vps/t7`, which Herdr shows for a terminal with no title) don't count.
 
 Herdr and herdr-core don't keep an agent's first message, so that can't be a source. A tab
 with none of these stays unnamed until one shows up.
@@ -64,7 +72,7 @@ with none of these stays unnamed until one shows up.
    ```
 
    Leave out `props` if you don't use Firstmate. `firstmate_home` is the folder that holds
-   Firstmate's `state/`; `~` is your home folder.
+   Firstmate's `data/backlog.md`; `~` is your home folder.
 
 4. Check it: `herdr-app check ~/.config/herdr-app/mods/herdr-tab-namer`.
 

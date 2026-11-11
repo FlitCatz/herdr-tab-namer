@@ -38,6 +38,8 @@ test("cleanTitle drops spinner and status glyphs in front", () => {
   assert.equal(cleanTitle("⠼ Prepare v1 launch brief | herdr-firstmate"), "Prepare v1 launch brief | herdr-firstmate");
   assert.equal(cleanTitle("✳  Fix the login bug"), "Fix the login bug");
   assert.equal(cleanTitle("(draft) notes"), "(draft) notes");
+  assert.equal(cleanTitle("✳ ~/src"), "~/src");
+  assert.equal(cleanTitle("⠼ /tmp"), "/tmp");
 });
 
 test("parseBacklog reads every row's project and title like Firstmate's snapshot", () => {
@@ -76,10 +78,14 @@ test("firstmateName gives <project> · <task title>, null when the home doesn't 
 test("generalName prefers the terminal name, then a meaningful title", () => {
   assert.equal(generalName({ name: "reviewer", title: "Something" }, { program: claude }), "reviewer");
   assert.equal(generalName({ name: null, title: "✳ Fix the login bug" }, { program: claude }), "Fix the login bug");
+  assert.equal(generalName({ title: "⠼ Prepare v1 launch brief" }, { program: claude }), "Prepare v1 launch brief");
   assert.equal(generalName(null, { title: "Fix the login bug", program: claude }), "Fix the login bug");
   assert.equal(generalName({ title: "✳ Claude Code" }, { program: claude }), null);
   assert.equal(generalName({ title: "2.1.318" }, { program: claude }), null);
   assert.equal(generalName({ title: "~/src/app" }, { program: claude }), null);
+  assert.equal(generalName({ title: "/tmp" }, { program: claude }), null);
+  assert.equal(generalName({ title: "✳ ~/src" }, { program: claude }), null);
+  assert.equal(generalName({ title: "⠼ /tmp" }, { program: claude }), null);
   assert.equal(generalName({ title: "" }, { program: claude }), null);
 });
 
