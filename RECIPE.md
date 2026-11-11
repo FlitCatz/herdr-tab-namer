@@ -35,15 +35,16 @@ the namer is on, so when it's off you see it and turn it on.
      the rest of the row without links, `blocked-by: <id>` notes (and a `- reason` after
      one), the trailing `(repo|kind|priority|hold...: ...)` / `(since|merged|reported|done
      ...)` groups, and a trailing `data/.../report.md` or `local main`, as Firstmate's
-     `bin/fm-fleet-snapshot.sh` reads it. `(repo: -)` means no project. A leading
+     `bin/fm-fleet-snapshot.sh` reads it. `(repo: -)` (or no `repo` field) means no project,
+     so the name is `<task title>` alone. A leading
      `<project>:` or `<project> ` is removed from the title. No home configured, or the
-     task isn't listed: the task id (`<id>`), which never replaces a name the mod already
-     gave. The backlog is read at most every 15 s, sooner (4 s) when a task id it doesn't
-     know appears; tasks it knew are kept after they leave it.
+     task isn't listed: the task id (`<id>`, after stripping a leading `fm-`), which never
+     replaces a name the mod already gave. The backlog is read at most every 15 s, sooner
+     (4 s) when a task id it doesn't know appears; tasks it knew are kept after they leave it.
   2. The terminal's `name` (from `terminals()`).
-  3. The terminal's `title`, else the pane's, leading non-letter glyphs (spinners, `✳`)
-     removed. Skipped when it equals the program's name or key, is a version
-     (`2.1.318`), starts with `/` or `~`, or is a terminal address (`t1j`, `vps/t7`;
+  3. The terminal's `title`, else the pane's, leading spinner or status glyphs (`✳`, `⠼`)
+     removed (keeping `/` and `~`). Skipped when it equals the program's name or key, is a
+     version (`2.1.318`), starts with `/` or `~`, or is a terminal address (`t1j`, `vps/t7`;
      Herdr shows the address for a terminal with an empty title). The `name` is skipped
      when it is an address too.
   Names are cut to 40 characters (code points), whitespace collapsed, ending in `…`.
@@ -61,7 +62,8 @@ the namer is on, so when it's off you see it and turn it on.
 - A rename the app hasn't shown yet is waited for up to 5 s before it's sent again, so
   a slow rename is neither sent every tick nor taken for a person's name.
 - Click while on: renames now (pending renames are resent, the backlog is re-read).
-  Click while off: turns it on and renames now. Right-click: turns it off (or on).
+  Click while off: turns it on and renames now. Right-click: toggles it off or on (without
+  running an immediate rename; when turned on by right-click, the next 4 s tick renames).
   Off stops renaming; names already given stay.
 - Presses on the button don't drag the window (`stop_propagation` on mouse down).
 
@@ -119,6 +121,7 @@ the namer is on, so when it's off you see it and turn it on.
 - With the backlog renamed away, task tabs already named `<project> · <title>` keep their
   names; a new task tab gets its id, and the full name once the backlog is back.
 - A tab renamed by hand keeps its name across ticks and restarts.
-- Right-click turns the button `blocked`-colored with a hollow dot and stops renaming; a
-  click turns it back on. The state is the same after restarting Herdr.
+- Right-click turns the button `blocked`-colored with a hollow dot and stops renaming
+  (existing names stay); a click turns it back on and renames at once (or right-click toggles
+  it back on for the next tick). The state is the same after restarting Herdr.
 - A tab with only a shell is never renamed and isn't counted.
