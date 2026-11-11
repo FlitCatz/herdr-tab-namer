@@ -43,7 +43,7 @@ For each agent tab, the first source that has something:
    it is a bare terminal address (`t1j`, `vps/t7`).
 3. **Terminal title.** The terminal's title (`terminal.title`), or the pane's title
    (`pane.title`) if the terminal has none (Claude Code and Codex set a title that says what
-   they're working on), without leading spinner glyphs. Titles that only name the
+   they're working on), without leading spinner glyphs. Titles that are only the
    program's name or key (`Claude Code`, `claude`), a version (`2.1.318`), a folder
    (`~/src`, `/tmp`, with or without a leading spinner) or a bare terminal address (`t1j`,
    `vps/t7`, which Herdr shows for a terminal with no title) don't count.
