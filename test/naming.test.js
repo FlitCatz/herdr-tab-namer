@@ -231,6 +231,19 @@ test("reconcile drops ownership of closed tabs only", () => {
   assert.deepEqual(out.owned, { a: "x" });
 });
 
+test("reconcile keeps ownership while the window hasn't loaded the tabs", () => {
+  const out = reconcile([], { owned: { a: "x", "wsl/b": "y" }, tabIds: new Set() });
+  assert.deepEqual(out.owned, { a: "x", "wsl/b": "y" });
+});
+
+test("reconcile keeps ownership of a disconnected machine's tabs", () => {
+  const owned = { a: "x", gone: "z", "wsl/b": "y" };
+  const out = reconcile([], { owned, tabIds: new Set(["a"]) });
+  assert.deepEqual(out.owned, { a: "x", "wsl/b": "y" }, "local `gone` is closed; wsl is offline");
+  const back = reconcile([{ id: "wsl/b", name: "y", named: true, pane: { tab: "wsl/b", terminal: "wsl/t1", status: "idle", title: "new work" }, terminal: null }], { owned: out.owned, tabIds: new Set(["a", "wsl/b"]) });
+  assert.deepEqual(back.renames, [{ id: "wsl/b", name: "new work" }], "the name follows its source again");
+});
+
 test("a task the home doesn't know is named by its id, but never over a better name", () => {
   const tab = (name, named) => ({ id: "a", name, named, terminal: { labels: { "firstmate.task": "fm-new-task" } }, pane: {} });
   const fresh = reconcile([tab("1", false)], { now: 0 });
