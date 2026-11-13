@@ -93,9 +93,11 @@ the namer is on, so when it's off you see it and turn it on.
   loads, not that it names anything.
 - `theme()` is typed `Record<string, string>` but the color setters want `#rrggbb`: cast
   it once (`import("gpui-kit").Color`) or `tsc` reports every color.
-- Ownership is pruned when a tab id disappears from `spaces()`. A remote machine that is
-  briefly unavailable drops its tabs, so the mod forgets those names: they stay, but
-  become a person's names and stop following their source.
+- Ownership is pruned only when a tab id disappears from `spaces()` while its machine still
+  shows other tabs. Tabs also go missing without being closed: `spaces()` is `[]` until the
+  window loads its spaces (the first tick runs before), and a remote machine that is briefly
+  unavailable drops all its tabs. Pruning those would leave the mod's names looking like a
+  person's, so they'd stop following their source for good.
 - Don't take titles from Firstmate's `state/home-summary.json`: its `active_children`
   lists only the tasks it counts as active at that moment, so other live task tabs fall
   back to bare ids. The backlog has every task.
