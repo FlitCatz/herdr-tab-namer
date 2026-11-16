@@ -90,3 +90,5 @@ node --test                                   # naming rules
 herdr-app check mods/herdr-tab-namer          # loads the mod; also writes gpui-kit.d.ts
 tsc -p mods/herdr-tab-namer/jsconfig.json     # type-check against those types
 ```
+
+The repository has no CI and declares that to no-mistakes in `.no-mistakes.yaml`.
