@@ -53,6 +53,8 @@ with none of these stays unnamed until one shows up.
 
 ## Add it
 
+Requires Herdr 0.1.16 or later (the mod imports `checking` from `herdr`).
+
 1. Copy `mods/herdr-tab-namer/` into `~/.config/herdr-app/mods/`.
 2. Herdr's own layouts are read-only, so clone the one you use (here `main`):
 

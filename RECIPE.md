@@ -80,7 +80,8 @@ the namer is on, so when it's off you see it and turn it on.
   `program`, `title`), `terminals()` (`address`, `labels`, `name`, `title`), `theme()`,
   `props()`, `home()`, `readTextFile()`, `shared()` / `setShared()` (keys
   `herdr-tab-namer.enabled`, absent means on, and `herdr-tab-namer.owned`, tab id to the
-  name the mod set, or `{ name, prev }` while a rename hasn't shown), `run("tab.rename", { id, name })`.
+  name the mod set, or `{ name, prev }` while a rename hasn't shown), `run("tab.rename", { id, name })`,
+  `checking()` (Herdr 0.1.16+; `init` skips the timer, backlog read and renames while true).
 - gpui-kit: `cx.timer.every(4000, ...)`, `cx.spawn`, `.tooltip()`, `h_flex` from gpui-base.
 - No programs run, no network. It reads one file outside its folder: the Firstmate
   backlog, only when `firstmate_home` is set.

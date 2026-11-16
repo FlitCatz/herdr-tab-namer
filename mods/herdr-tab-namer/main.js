@@ -1,6 +1,6 @@
 import { View, div } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { spaces, panes, terminals, theme, run, shared, setShared, props, readTextFile, home } from "herdr";
+import { spaces, panes, terminals, theme, checking, run, shared, setShared, props, readTextFile, home } from "herdr";
 import { FIRSTMATE_TASK, agentTabs, countNamed, parseBacklog, reconcile, taskId } from "./naming.js";
 
 /** @typedef {import("gpui-kit").Context} Context */
@@ -25,7 +25,9 @@ function firstmateHome() {
 }
 
 function currentAgentTabs() {
-  return agentTabs(spaces(), panes(), terminals());
+  // Herdr types a terminal as an open record; every one carries the `address` Terminal needs.
+  const list = /** @type {import("./naming.js").Terminal[]} */ (/** @type {unknown} */ (terminals()));
+  return agentTabs(spaces(), panes(), list);
 }
 
 export default class TabNamer extends View {
@@ -40,6 +42,8 @@ export default class TabNamer extends View {
     this.tasks = new Map();
     this.backlogAt = 0;
     this.loading = false;
+    // `herdr-app check` runs init() for real: no timer, file read or tab.rename there.
+    if (checking()) return;
     cx.timer.every(TICK_MS, (cx) => this.tick(cx, false));
     this.tick(cx, false);
   }
