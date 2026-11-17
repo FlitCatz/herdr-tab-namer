@@ -233,6 +233,15 @@ export function countNamed(tabs) {
 }
 
 /**
+ * The machine a tab id belongs to: `wsl` for `wsl/tb…`, `""` for a local tab.
+ * @param {string} id
+ */
+export function machineOf(id) {
+  const slash = id.lastIndexOf("/");
+  return slash < 0 ? "" : id.slice(0, slash);
+}
+
+/**
  * Decides which tabs to rename. `owned` maps a tab id to the name this mod set, recorded
  * when the rename is sent so it survives a restart before the next tick. Until that name
  * shows, the entry also keeps the name it replaces (`{ name, prev }`), so a tab still
@@ -241,7 +250,10 @@ export function countNamed(tabs) {
  * free to name. `pending` holds renames sent but not yet seen, so a slow one is neither
  * mistaken for a person's name nor sent on every tick.
  * Returns the renames to run and the next `owned` / `pending`.
- * `tabIds` (every tab that exists) prunes ownership of closed tabs. `force` (a click)
+ * `tabIds` (every tab that exists) prunes ownership of closed tabs, but only on a machine
+ * that shows some tab: before the window loads its spaces, or while a machine is
+ * disconnected, its tabs are missing without being closed, and losing them would leave
+ * the mod's names looking like a person's for good. `force` (a click)
  * sends a wanted rename again even while the same one is still pending.
  * @param {AgentTab[]} tabs
  * @param {{ owned?: Record<string, Owned>, pending?: Record<string, Sent>, tasks?: Tasks, now?: number, tabIds?: Set<string> | null, force?: boolean }} state
@@ -251,8 +263,10 @@ export function reconcile(tabs, { owned = {}, pending = {}, tasks = new Map(), n
   const nextOwned = {};
   /** @type {Record<string, Sent>} */
   const nextPending = {};
+  const loaded = tabIds ? new Set([...tabIds].map(machineOf)) : null;
   for (const [id, entry] of Object.entries(owned)) {
-    if (!tabIds || tabIds.has(id)) nextOwned[id] = typeof entry === "string" ? { name: entry } : entry;
+    const closed = tabIds && loaded && loaded.has(machineOf(id)) && !tabIds.has(id);
+    if (!closed) nextOwned[id] = typeof entry === "string" ? { name: entry } : entry;
   }
   /** @type {{ id: string, name: string }[]} */
   const renames = [];
