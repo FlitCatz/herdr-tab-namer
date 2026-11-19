@@ -288,7 +288,8 @@ export function machineOf(id) {
  * showing it stays the mod's and the rename is sent again. A tab whose name is anything
  * else was named by a person and is never touched. Unnamed agent tabs are
  * free to name. `pending` holds renames sent but not yet seen, so a slow one is neither
- * mistaken for a person's name nor sent on every tick.
+ * mistaken for a person's name nor sent on every tick; when a new rename replaces one
+ * not yet seen, the replaced names stay accepted (`alts`) while the new one is pending.
  * Returns the renames to run and the next `owned` / `pending`.
  * `tabIds` (every tab that exists) prunes ownership of closed tabs, but only on a machine
  * that shows some tab: before the window loads its spaces, or while a machine is

@@ -64,7 +64,9 @@ the namer is on, so when it's off you see it and turn it on.
   for a task the backlog doesn't list, or a backlog that can't be read) only names a tab
   that has no name; once the task's title is known, the id gives way to it.
 - A rename the app hasn't shown yet is waited for up to 5 s before it's sent again, so
-  a slow rename is neither sent every tick nor taken for a person's name.
+  a slow rename is neither sent every tick nor taken for a person's name. When a new
+  rename replaces one that hasn't shown yet, the earlier name stays the mod's while the
+  new one is pending, so it showing late isn't taken for a person's name either.
 - Click while on: renames now (pending renames are resent, the backlog is re-read).
   Click while off: turns it on and renames now. Right-click: toggles it off or on (without
   running an immediate rename; when turned on by right-click, the next 4 s tick renames).
