@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  MAX_NAME, PENDING_MS, agentTabs, cleanTitle, countNamed, firstmateName, generalName,
-  parseBacklog, reconcile, stripProject, truncate,
+  MAX_NAME, PENDING_MS, agentTabs, cleanTitle, countNamed, firstmateName, formatHomeTag,
+  generalName, parseBacklog, reconcile, stripProject, truncate,
 } from "../mods/herdr-tab-namer/naming.js";
 
 const claude = { key: "claude", name: "Claude Code", agent: true, shell: false };
@@ -115,11 +115,11 @@ function world() {
     { pane: "p6", tab: "d", terminal: "t6", status: "working", program: claude, title: "Other" },
   ];
   const terminals = [
-    { address: "t1", labels: { "firstmate.task": "fm-tab-namer" }, title: "✳ Claude Code" },
+    { address: "t1", labels: { "firstmate.task": "fm-tab-namer", "firstmate.home": "home-a" }, title: "✳ Claude Code" },
     { address: "t3", labels: {}, title: "zsh" },
     { address: "t4", labels: {}, title: "Refactor auth" },
     { address: "t5", labels: {}, title: "Plan the release" },
-    { address: "t6", labels: { "firstmate.task": "fm-own-work" }, title: "Other" },
+    { address: "t6", labels: { "firstmate.task": "fm-own-work", "firstmate.home": "home-a" }, title: "Other" },
   ];
   return { spaces, panes, terminals };
 }
@@ -144,7 +144,7 @@ test("reconcile names unnamed agent tabs and never touches a person's name", () 
   const { spaces, panes, terminals } = world();
   const tasks = parseBacklog(backlog);
   const tabs = agentTabs(spaces, panes, terminals);
-  const out = reconcile(tabs, { tasks, now: 1000 });
+  const out = reconcile(tabs, { tasks, homeId: "home-a", now: 1000 });
   assert.deepEqual(out.renames, [
     { id: "a", name: firstmateName("fm-tab-namer", tasks) },
     { id: "d", name: "Tidy the notes · weekly" },
@@ -155,27 +155,27 @@ test("reconcile names unnamed agent tabs and never touches a person's name", () 
 
 test("reconcile waits for a sent rename, then owns it once it shows", () => {
   const tasks = parseBacklog(backlog);
-  const tab = (name, named) => ({ id: "a", name, named, terminal: { labels: { "firstmate.task": "fm-tab-namer" } }, pane: {} });
+  const tab = (name, named) => ({ id: "a", name, named, terminal: { labels: { "firstmate.task": "fm-tab-namer", "firstmate.home": "home-a" } }, pane: {} });
   const want = firstmateName("fm-tab-namer", tasks);
-  const first = reconcile([tab("1", false)], { tasks, now: 0 });
+  const first = reconcile([tab("1", false)], { tasks, homeId: "home-a", now: 0 });
   assert.equal(first.renames.length, 1);
-  const waiting = reconcile([tab("1", false)], { tasks, now: 1000, pending: first.pending });
+  const waiting = reconcile([tab("1", false)], { tasks, homeId: "home-a", now: 1000, pending: first.pending });
   assert.equal(waiting.renames.length, 0);
-  const landed = reconcile([tab(want, true)], { tasks, now: 2000, pending: waiting.pending });
+  const landed = reconcile([tab(want, true)], { tasks, homeId: "home-a", now: 2000, pending: waiting.pending });
   assert.deepEqual(landed.owned, { a: want });
   assert.deepEqual(landed.pending, {});
   assert.equal(landed.renames.length, 0);
-  const lost = reconcile([tab("1", false)], { tasks, now: PENDING_MS + 1, pending: first.pending });
+  const lost = reconcile([tab("1", false)], { tasks, homeId: "home-a", now: PENDING_MS + 1, pending: first.pending });
   assert.equal(lost.renames.length, 1, "a rename that never showed is sent again");
 });
 
 test("a click keeps a landed rename owned and resends one still pending", () => {
-  const tab = (name, named) => ({ id: "a", name, named, terminal: { labels: { "firstmate.task": "fm-new-task" } }, pane: {} });
+  const tab = (name, named) => ({ id: "a", name, named, terminal: { labels: { "firstmate.task": "fm-new-task", "firstmate.home": "home-a" } }, pane: {} });
   const sent = reconcile([tab("1", false)], { now: 0 });
   const clicked = reconcile([tab("new-task", true)], { pending: sent.pending, now: 2000, force: true });
   assert.deepEqual(clicked.owned, { a: "new-task" }, "a rename that landed is still this mod's own");
   const tasks = new Map([["new-task", { project: "app", title: "New task" }]]);
-  const later = reconcile([tab("new-task", true)], { owned: clicked.owned, pending: clicked.pending, tasks, now: 6000 });
+  const later = reconcile([tab("new-task", true)], { owned: clicked.owned, pending: clicked.pending, tasks, homeId: "home-a", now: 6000 });
   assert.deepEqual(later.renames, [{ id: "a", name: "app · New task" }], "the id still gives way once the title is known");
   const resent = reconcile([tab("1", false)], { pending: sent.pending, now: 2000, force: true });
   assert.deepEqual(resent.renames, [{ id: "a", name: "new-task" }], "a click resends a rename that hasn't shown yet");
@@ -183,14 +183,14 @@ test("a click keeps a landed rename owned and resends one still pending", () => 
 });
 
 test("a rename is owned as it is sent, so a restart before the next tick keeps it", () => {
-  const tab = (name, named) => ({ id: "a", name, named, terminal: { labels: { "firstmate.task": "fm-new-task" } }, pane: {} });
+  const tab = (name, named) => ({ id: "a", name, named, terminal: { labels: { "firstmate.task": "fm-new-task", "firstmate.home": "home-a" } }, pane: {} });
   const sent = reconcile([tab("1", false)], { now: 0 });
   assert.deepEqual(sent.owned, { a: "new-task" });
   const tasks = new Map([["new-task", { project: "app", title: "New task" }]]);
-  const restarted = reconcile([tab("new-task", true)], { owned: sent.owned, tasks, now: 4000 });
+  const restarted = reconcile([tab("new-task", true)], { owned: sent.owned, tasks, homeId: "home-a", now: 4000 });
   assert.deepEqual(restarted.renames, [{ id: "a", name: "app · New task" }], "the id still gives way after a restart");
   assert.deepEqual(restarted.owned, { a: { name: "app · New task", prev: "new-task" } });
-  const person = reconcile([tab("Mine", true)], { owned: sent.owned, tasks, now: 4000 });
+  const person = reconcile([tab("Mine", true)], { owned: sent.owned, tasks, homeId: "home-a", now: 4000 });
   assert.deepEqual(person.renames, [], "a name other than the one sent is a person's");
   assert.deepEqual(person.owned, {});
 });
@@ -245,13 +245,144 @@ test("reconcile keeps ownership of a disconnected machine's tabs", () => {
 });
 
 test("a task the home doesn't know is named by its id, but never over a better name", () => {
-  const tab = (name, named) => ({ id: "a", name, named, terminal: { labels: { "firstmate.task": "fm-new-task" } }, pane: {} });
+  const tab = (name, named) => ({ id: "a", name, named, terminal: { labels: { "firstmate.task": "fm-new-task", "firstmate.home": "home-a" } }, pane: {} });
   const fresh = reconcile([tab("1", false)], { now: 0 });
   assert.deepEqual(fresh.renames, [{ id: "a", name: "new-task" }]);
   const kept = reconcile([tab("app · New task", true)], { owned: { a: "app · New task" }, now: 0 });
   assert.deepEqual(kept.renames, [], "an unreadable backlog keeps the name");
   assert.deepEqual(kept.owned, { a: "app · New task" });
   const tasks = new Map([["new-task", { project: "app", title: "New task" }]]);
-  const upgraded = reconcile([tab("new-task", true)], { owned: { a: "new-task" }, tasks, now: 0 });
+  const upgraded = reconcile([tab("new-task", true)], { owned: { a: "new-task" }, tasks, homeId: "home-a", now: 0 });
   assert.deepEqual(upgraded.renames, [{ id: "a", name: "app · New task" }], "the id gives way once the title is known");
+});
+
+test("reconcile keeps a person's manual name even while an automatic rename is pending", () => {
+  const tab = (name, title, named = true) => ({ id: "a", name, named, terminal: { title }, pane: { program: claude } });
+  const pendingOnly = reconcile([tab("Manual", "New source")], {
+    pending: { a: { name: "Old source", at: 0 } },
+    now: 1000,
+  });
+  assert.deepEqual(pendingOnly.renames, []);
+  assert.deepEqual(pendingOnly.pending, {});
+  assert.deepEqual(pendingOnly.owned, {});
+
+  const sent = reconcile([tab("1", "Old source", false)], { now: 0 });
+  assert.deepEqual(sent.renames, [{ id: "a", name: "Old source" }]);
+  const manual = reconcile([tab("Manual", "New source")], {
+    owned: sent.owned,
+    pending: sent.pending,
+    now: 1000,
+  });
+  assert.deepEqual(manual.renames, []);
+  assert.deepEqual(manual.pending, {});
+  assert.deepEqual(manual.owned, {});
+
+  const reRename = reconcile([tab("Old source", "Next source")], { owned: { a: "Old source" }, now: 0 });
+  assert.deepEqual(reRename.renames, [{ id: "a", name: "Next source" }]);
+  const stillPrev = reconcile([tab("Old source", "Next source")], {
+    owned: reRename.owned,
+    pending: reRename.pending,
+    now: 1000,
+  });
+  assert.deepEqual(stillPrev.renames, [], "still showing the pre-rename name stays pending");
+  assert.deepEqual(stillPrev.owned, reRename.owned);
+  const manualOverReRename = reconcile([tab("Manual", "Final source")], {
+    owned: reRename.owned,
+    pending: reRename.pending,
+    now: 1000,
+  });
+  assert.deepEqual(manualOverReRename.renames, []);
+  assert.deepEqual(manualOverReRename.pending, {});
+  assert.deepEqual(manualOverReRename.owned, {});
+});
+
+test("reconcile applies a home's backlog title only when firstmate.home matches", () => {
+  const tasksA = new Map([["shared", { project: "Repo A", title: "Draft" }]]);
+  const tasksB = new Map([["shared", { project: "Repo B", title: "Review" }]]);
+  const tab = (name, named, home) => ({
+    id: "a",
+    name,
+    named,
+    terminal: { labels: home ? { "firstmate.task": "fm-shared", "firstmate.home": home } : { "firstmate.task": "fm-shared" } },
+    pane: {},
+  });
+
+  const outA = reconcile([tab("1", false, "home-a")], { tasks: tasksA, homeId: "home-a", now: 0 });
+  assert.deepEqual(outA.renames, [{ id: "a", name: "Repo A · Draft" }]);
+  const outB = reconcile([tab("Repo A · Draft", true, "home-a")], {
+    owned: outA.owned,
+    tasks: tasksB,
+    homeId: "home-b",
+    now: 1000,
+  });
+  assert.deepEqual(outB.renames, [], "a mismatched home never overwrites the other home's name");
+  const outA2 = reconcile([tab("Repo A · Draft", true, "home-a")], {
+    owned: outB.owned,
+    tasks: tasksA,
+    homeId: "home-a",
+    now: 2000,
+  });
+  assert.deepEqual(outA2.renames, []);
+
+  const bFirst = reconcile([tab("1", false, "home-a")], { tasks: tasksB, homeId: "home-b", now: 0 });
+  assert.deepEqual(bFirst.renames, [{ id: "a", name: "shared" }], "an unnamed tab from another home falls back to the bare task id");
+  const aUpgrades = reconcile([tab("shared", true, "home-a")], {
+    owned: bFirst.owned,
+    tasks: tasksA,
+    homeId: "home-a",
+    now: 1000,
+  });
+  assert.deepEqual(aUpgrades.renames, [{ id: "a", name: "Repo A · Draft" }]);
+
+  const unverifiedNew = reconcile([tab("1", false, undefined)], { tasks: tasksA, homeId: "home-a", now: 0 });
+  assert.deepEqual(unverifiedNew.renames, [{ id: "a", name: "shared" }], "missing firstmate.home falls back to the bare id on a new tab");
+  const unverifiedNamed = reconcile([tab("shared", true, undefined)], {
+    owned: unverifiedNew.owned,
+    tasks: tasksA,
+    homeId: "home-a",
+    now: 1000,
+  });
+  assert.deepEqual(unverifiedNamed.renames, [], "missing firstmate.home preserves the current name");
+  const noHomeId = reconcile([tab("shared", true, "home-a")], {
+    owned: { a: "shared" },
+    tasks: tasksA,
+    homeId: null,
+    now: 1000,
+  });
+  assert.deepEqual(noHomeId.renames, [], "missing homeId preserves the current name");
+});
+
+test("formatHomeTag formats primary and secondmate home tags", () => {
+  assert.equal(formatHomeTag(null, "363c87fa"), "firstmate-363c87fa");
+  assert.equal(formatHomeTag("   \n", "363c87fa"), "firstmate-363c87fa");
+  assert.equal(formatHomeTag("ops\n", "deadbeef"), "2ndmate-ops-deadbeef");
+});
+
+test("agentTabs indexes panes by tab id instead of scanning all panes per tab", () => {
+  let tabReads = 0;
+  const spaces = [];
+  const panes = [];
+  const terminals = [];
+  for (let s = 0; s < 5; s++) {
+    const tabs = [];
+    for (let i = 0; i < 8; i++) {
+      const id = `tab-${s}-${i}`;
+      const termId = `t-${s}-${i}`;
+      tabs.push({ id, name: i % 2 === 0 ? `work-${i}` : String(i + 1), named: i % 2 === 0 });
+      panes.push({
+        pane: `p-${s}-${i}`,
+        get tab() { tabReads++; return id; },
+        terminal: termId,
+        status: "idle",
+        program: claude,
+        title: "Work",
+      });
+      terminals.push({ address: termId, labels: {} });
+    }
+    spaces.push({ id: `s-${s}`, tabs });
+  }
+  const tabs = agentTabs(spaces, panes, terminals);
+  assert.equal(tabs.length, 40);
+  assert.deepEqual(countNamed(tabs), { named: 20, total: 40 });
+  assert.equal(tabReads, panes.length);
 });

@@ -32,13 +32,14 @@ For each agent tab, the first source that has something:
 
 1. **Firstmate task.** A terminal carrying the `firstmate.task` label is a Firstmate task;
    a leading `fm-` prefix on the label (`firstmate.task=fm-<id>`) is stripped to get the
-   task id. When the layout gives the button a `firstmate_home`, the name is
-   `<project> · <task title>` from that home's backlog (`data/backlog.md`: the row's
-   `(repo: ...)` and title, the same ones Firstmate's Board shows), or `<task title>` alone
-   when the row has no project (`(repo: -)` or no `repo` field). A title that starts with
-   its project (`my-app: ...`, `my-app ...`) loses that prefix, so the project shows once.
-   Without a home, or for a task the backlog doesn't list, the name is the task id, and an
-   id never replaces a better name the namer already gave.
+   task id. When the layout gives the button a `firstmate_home` and the terminal's
+   `firstmate.home` label matches that home, the name is `<project> · <task title>` from
+   that home's backlog (`data/backlog.md`: the row's `(repo: ...)` and title, the same ones
+   Firstmate's Board shows), or `<task title>` alone when the row has no project
+   (`(repo: -)` or no `repo` field). A title that starts with its project (`my-app: ...`,
+   `my-app ...`) loses that prefix, so the project shows once. Without a matching home, or
+   for a task the backlog doesn't list, the name is the task id, and an id never replaces a
+   better name the namer already gave.
 2. **Terminal name.** The name the terminal was started with (`hc run --name ...`), unless
    it is a bare terminal address (`t1j`, `vps/t7`).
 3. **Terminal title.** The terminal's title (`terminal.title`), or the pane's title

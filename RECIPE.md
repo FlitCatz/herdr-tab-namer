@@ -31,16 +31,20 @@ the namer is on, so when it's off you see it and turn it on.
   The name comes from the tab's Firstmate terminal if it has one, else its first agent:
   1. `firstmate.task=fm-<id>` label: `<project> · <task title>` from the row
      `- [ ] <id> - <title> ... (repo: <project>) (kind: ...) ...` (or `- [x]`, or
-     `- **<id>** - ...`) in `<firstmate_home>/data/backlog.md`, any section. The title is
+     `- **<id>** - ...`) in `<firstmate_home>/data/backlog.md`, any section, only when
+     the terminal's `firstmate.home` label matches `<firstmate_home>`'s home tag
+     (`firstmate-<hash8>` or `2ndmate-<id>-<hash8>` from `.fm-secondmate-home` and the
+     first 8 hex chars of the resolved path's SHA-256). The title is
      the rest of the row without links, `blocked-by: <id>` notes (and a `- reason` after
      one), the trailing `(repo|kind|priority|hold...: ...)` / `(since|merged|reported|done
      ...)` groups, and a trailing `data/.../report.md` or `local main`, as Firstmate's
      `bin/fm-fleet-snapshot.sh` reads it. `(repo: -)` (or no `repo` field) means no project,
      so the name is `<task title>` alone. A leading
-     `<project>:` or `<project> ` is removed from the title. No home configured, or the
+     `<project>:` or `<project> ` is removed from the title. No matching home, or the
      task isn't listed: the task id (`<id>`, after stripping a leading `fm-`), which never
      replaces a name the mod already gave. The backlog is read at most every 15 s, sooner
-     (4 s) when a task id it doesn't know appears; tasks it knew are kept after they leave it.
+     (4 s) when a task id for this home it doesn't know appears; tasks it knew are kept
+     after they leave it.
   2. The terminal's `name` (from `terminals()`).
   3. The terminal's `title`, else the pane's, leading spinner or status glyphs (`✳`, `⠼`)
      removed (keeping `/` and `~`). Skipped when it equals the program's name or key, is a
@@ -78,13 +82,15 @@ the namer is on, so when it's off you see it and turn it on.
   no imports), `jsconfig.json` (`checkJs`, as Herdr writes it).
 - `herdr`: `spaces()` (tab `id`, `name`, `named`), `panes()` (`tab`, `terminal`, `status`,
   `program`, `title`), `terminals()` (`address`, `labels`, `name`, `title`), `theme()`,
-  `props()`, `home()`, `readTextFile()`, `shared()` / `setShared()` (keys
+  `props()`, `home()`, `exec()` (`pwd -P` to resolve symlinks in `firstmate_home`),
+  `readTextFile()`, `shared()` / `setShared()` (keys
   `herdr-tab-namer.enabled`, absent means on, and `herdr-tab-namer.owned`, tab id to the
   name the mod set, or `{ name, prev }` while a rename hasn't shown), `run("tab.rename", { id, name })`,
   `checking()` (Herdr 0.1.16+; `init` skips the timer, backlog read and renames while true).
 - gpui-kit: `cx.timer.every(4000, ...)`, `cx.spawn`, `.tooltip()`, `h_flex` from gpui-base.
-- No programs run, no network. It reads one file outside its folder: the Firstmate
-  backlog, only when `firstmate_home` is set.
+- No network; only `pwd -P` runs (to resolve symlinks in `firstmate_home`). Outside its
+  folder it reads `<firstmate_home>/data/backlog.md` and, if present,
+  `<firstmate_home>/.fm-secondmate-home`, only when `firstmate_home` is set.
 
 ## Watch out
 
@@ -105,8 +111,11 @@ the namer is on, so when it's off you see it and turn it on.
 - `Tabs n/m` counts agent tabs in every space, not just the shown one, while the tab bar
   shows only the shown space's tabs: a bar with three named tabs can read `Tabs 6/7` (the
   preview does), because other spaces hold more agent tabs and one is unnamed.
-- Two copies pointed at different homes (a second layout, a demo) don't undo each other:
-  to each, the other's tasks are unknown, and an unknown task's id never replaces a name.
+- Two copies pointed at different homes (a second layout, a demo) don't undo each other,
+  even if both backlogs share a task id: each copy applies backlog titles only to
+  terminals whose `firstmate.home` label matches its `firstmate_home` tag, preserving
+  existing names on tabs from other or unverified homes and falling back to the bare id
+  only when unnamed.
 - On Windows and Linux the tab bar draws the window buttons at its right end, so the
   button sits right of the close button; put the block before the tab bar if that bothers.
 - Herdr has no command to move a tab to another space, so the mod only names tabs.
