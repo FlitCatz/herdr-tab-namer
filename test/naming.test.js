@@ -296,6 +296,38 @@ test("reconcile keeps a person's manual name even while an automatic rename is p
   assert.deepEqual(manualOverReRename.owned, {});
 });
 
+test("an earlier rename that shows after a newer one was sent stays the mod's", () => {
+  const tab = (name, title, named = true) => ({ id: "a", name, named, terminal: { title }, pane: { program: claude } });
+  const sentA = reconcile([tab("P", "A")], { owned: { a: "P" }, now: 0 });
+  assert.deepEqual(sentA.renames, [{ id: "a", name: "A" }]);
+  const sentB = reconcile([tab("P", "B")], { owned: sentA.owned, pending: sentA.pending, now: 4000 });
+  assert.deepEqual(sentB.renames, [{ id: "a", name: "B" }]);
+  const showsA = reconcile([tab("A", "B")], { owned: sentB.owned, pending: sentB.pending, now: 8000 });
+  assert.deepEqual(showsA.renames, [], "B is still on its way");
+  assert.deepEqual(showsA.owned, { a: { name: "B", prev: "P" } });
+  assert.deepEqual(Object.keys(showsA.pending), ["a"]);
+  const landed = reconcile([tab("B", "C")], { owned: showsA.owned, pending: showsA.pending, now: 8500 });
+  assert.deepEqual(landed.renames, [{ id: "a", name: "C" }], "the name still follows its source");
+  const person = reconcile([tab("Mine", "B")], { owned: showsA.owned, pending: showsA.pending, now: 8500 });
+  assert.deepEqual(person.renames, []);
+  assert.deepEqual(person.owned, {}, "a name never sent is still a person's");
+});
+
+test("a bare id that shows after the backlog title was sent stays the mod's", () => {
+  const tab = (name, named) => ({ id: "a", name, named, terminal: { labels: { "firstmate.task": "fm-new-task", "firstmate.home": "home-a" } }, pane: {} });
+  const sentId = reconcile([tab("1", false)], { now: 0 });
+  assert.deepEqual(sentId.renames, [{ id: "a", name: "new-task" }]);
+  const tasks = new Map([["new-task", { project: "app", title: "New task" }]]);
+  const sentTitle = reconcile([tab("1", false)], { owned: sentId.owned, pending: sentId.pending, tasks, homeId: "home-a", now: 10 });
+  assert.deepEqual(sentTitle.renames, [{ id: "a", name: "app · New task" }]);
+  const showsId = reconcile([tab("new-task", true)], { owned: sentTitle.owned, pending: sentTitle.pending, tasks, homeId: "home-a", now: 1000 });
+  assert.deepEqual(showsId.renames, [], "the title is still on its way");
+  assert.deepEqual(showsId.owned, { a: "app · New task" });
+  const landed = reconcile([tab("app · New task", true)], { owned: showsId.owned, pending: showsId.pending, tasks, homeId: "home-a", now: 2000 });
+  assert.deepEqual(landed.owned, { a: "app · New task" });
+  assert.deepEqual(landed.pending, {});
+});
+
 test("reconcile applies a home's backlog title only when firstmate.home matches", () => {
   const tasksA = new Map([["shared", { project: "Repo A", title: "Draft" }]]);
   const tasksB = new Map([["shared", { project: "Repo B", title: "Review" }]]);

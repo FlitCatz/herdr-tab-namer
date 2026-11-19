@@ -9,7 +9,7 @@
 /** @typedef {{ project: string, title: string }} Task */
 /** @typedef {Map<string, Task>} Tasks */
 /** @typedef {Tab & { pane: Pane, terminal: Terminal | null }} AgentTab */
-/** @typedef {{ name: string, at: number, prev?: string }} Sent */
+/** @typedef {{ name: string, at: number, prev?: string, alts?: string[] }} Sent */
 /** @typedef {string | { name: string, prev: string }} Owned */
 
 /** Longest tab name the mod writes, in characters (code points). */
@@ -316,6 +316,7 @@ export function reconcile(tabs, { owned = {}, pending = {}, tasks = new Map(), h
     const matchesMine = tab.named && (
       tab.name === sent?.name ||
       tab.name === sent?.prev ||
+      sent?.alts?.includes(tab.name) ||
       tab.name === mine?.name ||
       tab.name === mine?.prev
     );
@@ -333,7 +334,12 @@ export function reconcile(tabs, { owned = {}, pending = {}, tasks = new Map(), h
     if (!force && nextPending[tab.id]?.name === want.name) continue;
     renames.push({ id: tab.id, name: want.name });
     nextOwned[tab.id] = tab.named ? { name: want.name, prev: tab.name } : { name: want.name };
-    nextPending[tab.id] = tab.named ? { name: want.name, at: now, prev: tab.name } : { name: want.name, at: now };
+    const prior = nextPending[tab.id];
+    /** @type {Sent} */
+    const next = tab.named ? { name: want.name, at: now, prev: tab.name } : { name: want.name, at: now };
+    const alts = prior ? [prior.name, ...(prior.alts ?? [])].filter((n) => n !== want.name && n !== next.prev) : [];
+    if (alts.length) next.alts = alts;
+    nextPending[tab.id] = next;
   }
   /** @type {Record<string, Owned>} */
   const savedOwned = {};
