@@ -9,7 +9,7 @@
 /** @typedef {{ project: string, title: string }} Task */
 /** @typedef {Map<string, Task>} Tasks */
 /** @typedef {Tab & { pane: Pane, terminal: Terminal | null }} AgentTab */
-/** @typedef {{ name: string, at: number }} Sent */
+/** @typedef {{ name: string, at: number, prev?: string, alts?: string[] }} Sent */
 /** @typedef {string | { name: string, prev: string }} Owned */
 
 /** Longest tab name the mod writes, in characters (code points). */
@@ -19,6 +19,19 @@ export const MAX_NAME = 40;
 export const PENDING_MS = 5000;
 
 export const FIRSTMATE_TASK = "firstmate.task";
+export const FIRSTMATE_HOME = "firstmate.home";
+
+/**
+ * Formats Firstmate's home tag (`<prefix>-<hash>`) from an optional `.fm-secondmate-home`
+ * marker's text and the 8-char SHA-256 prefix of the resolved home path.
+ * @param {string | null | undefined} marker
+ * @param {string} hash8
+ */
+export function formatHomeTag(marker, hash8) {
+  const id = typeof marker === "string" ? marker.replace(/\s+/g, "") : "";
+  const prefix = id ? `2ndmate-${id}` : "firstmate";
+  return `${prefix}-${hash8}`;
+}
 
 /**
  * Collapses whitespace and cuts `text` to `max` characters with an ellipsis.
@@ -173,15 +186,19 @@ export function generalName(terminal, pane) {
 
 /**
  * The name a tab should carry: Firstmate's task first, then the general sources.
- * `fallback`: only the bare task id, because the Firstmate home doesn't know the task.
+ * `fallback`: only the bare task id, because the Firstmate home doesn't know the task
+ * or the terminal's `firstmate.home` label does not match `homeId`.
  * @param {AgentTab} entry
  * @param {Tasks} tasks
+ * @param {string | null} [homeId]
  * @returns {{ name: string, fallback: boolean } | null}
  */
-export function wantedName(entry, tasks) {
+export function wantedName(entry, tasks, homeId = null) {
   const label = entry.terminal?.labels?.[FIRSTMATE_TASK];
   if (typeof label === "string" && label) {
-    const name = firstmateName(label, tasks);
+    const terminalHome = entry.terminal?.labels?.[FIRSTMATE_HOME];
+    const sameHome = typeof homeId === "string" && homeId !== "" && terminalHome === homeId;
+    const name = sameHome ? firstmateName(label, tasks) : null;
     return name ? { name, fallback: false } : { name: truncate(taskId(label)), fallback: true };
   }
   const name = generalName(entry.terminal, entry.pane);
@@ -208,17 +225,38 @@ function isAgentPane(pane, terminal) {
  */
 export function agentTabs(spaces, panes, terminals) {
   const byAddress = new Map((terminals ?? []).map((t) => [t.address, t]));
+  /** @type {Map<string, Pane[]>} */
+  const panesByTab = new Map();
+  for (const pane of panes ?? []) {
+    const tabId = pane.tab;
+    let list = panesByTab.get(tabId);
+    if (!list) {
+      list = [];
+      panesByTab.set(tabId, list);
+    }
+    list.push(pane);
+  }
   /** @type {AgentTab[]} */
   const out = [];
   for (const space of spaces ?? []) {
     for (const tab of space.tabs ?? []) {
-      const agents = (panes ?? [])
-        .filter((p) => p.tab === tab.id)
-        .map((pane) => ({ pane, terminal: byAddress.get(pane.terminal) ?? null }))
-        .filter(({ pane, terminal }) => isAgentPane(pane, terminal));
-      if (!agents.length) continue;
-      const pick = agents.find((a) => a.terminal?.labels?.[FIRSTMATE_TASK]) ?? agents[0];
-      out.push({ id: tab.id, name: tab.name, named: tab.named, ...pick });
+      const tabPanes = panesByTab.get(tab.id);
+      if (!tabPanes) continue;
+      /** @type {{ pane: Pane, terminal: Terminal | null } | null} */
+      let firstAgent = null;
+      /** @type {{ pane: Pane, terminal: Terminal | null } | null} */
+      let firstTask = null;
+      for (const pane of tabPanes) {
+        const terminal = pane.terminal ? (byAddress.get(pane.terminal) ?? null) : null;
+        if (!isAgentPane(pane, terminal)) continue;
+        if (terminal?.labels?.[FIRSTMATE_TASK]) {
+          firstTask = { pane, terminal };
+          break;
+        }
+        if (!firstAgent) firstAgent = { pane, terminal };
+      }
+      const pick = firstTask ?? firstAgent;
+      if (pick) out.push({ id: tab.id, name: tab.name, named: tab.named, ...pick });
     }
   }
   return out;
@@ -229,7 +267,9 @@ export function agentTabs(spaces, panes, terminals) {
  * @param {AgentTab[]} tabs
  */
 export function countNamed(tabs) {
-  return { named: tabs.filter((t) => t.named).length, total: tabs.length };
+  let named = 0;
+  for (const t of tabs) if (t.named) named++;
+  return { named, total: tabs.length };
 }
 
 /**
@@ -248,7 +288,8 @@ export function machineOf(id) {
  * showing it stays the mod's and the rename is sent again. A tab whose name is anything
  * else was named by a person and is never touched. Unnamed agent tabs are
  * free to name. `pending` holds renames sent but not yet seen, so a slow one is neither
- * mistaken for a person's name nor sent on every tick.
+ * mistaken for a person's name nor sent on every tick; when a new rename replaces one
+ * not yet seen, the replaced names stay accepted (`alts`) while the new one is pending.
  * Returns the renames to run and the next `owned` / `pending`.
  * `tabIds` (every tab that exists) prunes ownership of closed tabs, but only on a machine
  * that shows some tab: before the window loads its spaces, or while a machine is
@@ -256,9 +297,9 @@ export function machineOf(id) {
  * the mod's names looking like a person's for good. `force` (a click)
  * sends a wanted rename again even while the same one is still pending.
  * @param {AgentTab[]} tabs
- * @param {{ owned?: Record<string, Owned>, pending?: Record<string, Sent>, tasks?: Tasks, now?: number, tabIds?: Set<string> | null, force?: boolean }} state
+ * @param {{ owned?: Record<string, Owned>, pending?: Record<string, Sent>, tasks?: Tasks, homeId?: string | null, now?: number, tabIds?: Set<string> | null, force?: boolean }} state
  */
-export function reconcile(tabs, { owned = {}, pending = {}, tasks = new Map(), now = 0, tabIds = null, force = false }) {
+export function reconcile(tabs, { owned = {}, pending = {}, tasks = new Map(), homeId = null, now = 0, tabIds = null, force = false }) {
   /** @type {Record<string, { name: string, prev?: string }>} */
   const nextOwned = {};
   /** @type {Record<string, Sent>} */
@@ -272,14 +313,21 @@ export function reconcile(tabs, { owned = {}, pending = {}, tasks = new Map(), n
   const renames = [];
   for (const tab of tabs) {
     const sent = pending[tab.id];
-    if (tab.named && (tab.name === sent?.name || tab.name === nextOwned[tab.id]?.name)) nextOwned[tab.id] = { name: tab.name };
-    else if (sent && now - sent.at < PENDING_MS) nextPending[tab.id] = sent;
     const mine = nextOwned[tab.id];
-    if (tab.named && tab.name !== mine?.name && tab.name !== mine?.prev && !nextPending[tab.id]) {
+    const matchesMine = tab.named && (
+      tab.name === sent?.name ||
+      tab.name === sent?.prev ||
+      sent?.alts?.includes(tab.name) ||
+      tab.name === mine?.name ||
+      tab.name === mine?.prev
+    );
+    if (tab.named && !matchesMine) {
       delete nextOwned[tab.id]; // a person's name
       continue;
     }
-    const want = wantedName(tab, tasks);
+    if (tab.named && (tab.name === sent?.name || tab.name === mine?.name)) nextOwned[tab.id] = { name: tab.name };
+    else if (sent && now - sent.at < PENDING_MS) nextPending[tab.id] = sent;
+    const want = wantedName(tab, tasks, homeId);
     if (!want || (tab.named && tab.name === want.name)) continue;
     // A bare task id never replaces a name this mod already gave (a backlog that couldn't
     // be read, or another copy pointed at another home).
@@ -287,7 +335,12 @@ export function reconcile(tabs, { owned = {}, pending = {}, tasks = new Map(), n
     if (!force && nextPending[tab.id]?.name === want.name) continue;
     renames.push({ id: tab.id, name: want.name });
     nextOwned[tab.id] = tab.named ? { name: want.name, prev: tab.name } : { name: want.name };
-    nextPending[tab.id] = { name: want.name, at: now };
+    const prior = nextPending[tab.id];
+    /** @type {Sent} */
+    const next = tab.named ? { name: want.name, at: now, prev: tab.name } : { name: want.name, at: now };
+    const alts = prior ? [prior.name, ...(prior.alts ?? [])].filter((n) => n !== want.name && n !== next.prev) : [];
+    if (alts.length) next.alts = alts;
+    nextPending[tab.id] = next;
   }
   /** @type {Record<string, Owned>} */
   const savedOwned = {};
