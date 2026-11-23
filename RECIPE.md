@@ -46,11 +46,12 @@ the namer is on, so when it's off you see it and turn it on.
      (4 s) when a task id for this home it doesn't know appears; tasks it knew are kept
      after they leave it.
   2. The terminal's `name` (from `terminals()`).
-  3. The terminal's `title`, else the pane's, leading spinner or status glyphs (`✳`, `⠼`)
-     removed (keeping `/` and `~`). Skipped when it equals the program's name or key, is a
-     version (`2.1.318`), starts with `/` or `~`, or is a terminal address (`t1j`, `vps/t7`;
-     Herdr shows the address for a terminal with an empty title). The `name` is skipped
-     when it is an address too.
+  3. The terminal's `title`, then the pane's `title`, cleaning and checking each in order
+     and picking the first usable one: leading spinner or status glyphs (`✳`, `⠼`) are
+     removed (keeping `/` and `~`), and a candidate is skipped when it is empty or
+     whitespace-only, equals the program's name or key, is a version (`2.1.318`), starts
+     with `/` or `~`, or is a terminal address (`t1j`, `vps/t7`; Herdr shows the address for
+     a terminal with an empty title). The `name` is skipped when it is an address too.
   Names are cut to 40 characters (code points), whitespace collapsed, ending in `…`.
 - The names the mod set are remembered per tab id, saved as each rename is sent so a
   restart right after a rename keeps it. Until a new name shows, the name it replaces is
