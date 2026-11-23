@@ -170,7 +170,7 @@ export function isAddress(text, address) {
 }
 
 /**
- * The name the terminal Herdr reports, else the title its program set, if it says anything.
+ * The name the terminal Herdr reports, else the first usable title from the terminal or pane.
  * @param {Terminal | null} terminal
  * @param {Partial<Pane>} pane
  */
@@ -178,10 +178,12 @@ export function generalName(terminal, pane) {
   const address = terminal?.address ?? pane?.terminal;
   const name = String(terminal?.name ?? "").trim();
   if (name && !isAddress(name, address)) return truncate(name);
-  const title = cleanTitle(terminal?.title || pane?.title);
-  if (/^[~/]/.test(title)) return null; // a shell showing its folder
-  if (!title || isAddress(title, address) || isGenericTitle(title, pane?.program)) return null;
-  return truncate(title);
+  for (const raw of [terminal?.title, pane?.title]) {
+    const title = cleanTitle(raw);
+    if (!title || /^[~/]/.test(title) || isAddress(title, address) || isGenericTitle(title, pane?.program)) continue;
+    return truncate(title);
+  }
+  return null;
 }
 
 /**

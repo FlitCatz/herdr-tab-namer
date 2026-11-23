@@ -42,12 +42,14 @@ For each agent tab, the first source that has something:
    better name the namer already gave.
 2. **Terminal name.** The name the terminal was started with (`hc run --name ...`), unless
    it is a bare terminal address (`t1j`, `vps/t7`).
-3. **Terminal title.** The terminal's title (`terminal.title`), or the pane's title
-   (`pane.title`) if the terminal has none (Claude Code and Codex set a title that says what
-   they're working on), without leading spinner glyphs. Titles that are only the
-   program's name or key (`Claude Code`, `claude`), a version (`2.1.318`), a folder
-   (`~/src`, `/tmp`, with or without a leading spinner) or a bare terminal address (`t1j`,
-   `vps/t7`, which Herdr shows for a terminal with no title) don't count.
+3. **Terminal or pane title.** The terminal's title (`terminal.title`), then the pane's
+   title (`pane.title`), taking the first usable one (Claude Code and Codex set a title
+   that says what they're working on), without leading spinner glyphs. Titles that are
+   empty or whitespace-only, only the program's name or key (`Claude Code`, `claude`), a
+   version (`2.1.318`), a folder (`~/src`, `/tmp`, with or without a leading spinner) or a
+   bare terminal address (`t1j`, `vps/t7`, which Herdr shows for a terminal with no title)
+   don't count, so a generic, blank, folder, or address-only terminal title falls through
+   to the pane's title.
 
 Herdr and herdr-core don't keep an agent's first message, so that can't be a source. A tab
 with none of these stays unnamed until one shows up.

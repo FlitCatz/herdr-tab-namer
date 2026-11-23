@@ -97,6 +97,50 @@ test("generalName never uses a bare terminal address", () => {
   assert.equal(generalName({ address: "t1j", title: "test the parser" }, { program: claude }), "test the parser");
 });
 
+test("generalName falls through from unusable terminal titles to a meaningful pane title", () => {
+  assert.equal(
+    generalName({ address: "t1j", title: "✳ Claude Code" }, { program: claude, title: "Refactor auth" }),
+    "Refactor auth",
+  );
+  assert.equal(
+    generalName({ address: "t1j", title: "2.1.318" }, { program: claude, title: "Refactor auth" }),
+    "Refactor auth",
+  );
+  assert.equal(
+    generalName({ address: "t1j", title: "   " }, { program: claude, title: "Refactor auth" }),
+    "Refactor auth",
+  );
+  assert.equal(
+    generalName({ address: "t1j", title: "✳  " }, { program: claude, title: "Refactor auth" }),
+    "Refactor auth",
+  );
+  assert.equal(
+    generalName({ address: "t1j", title: "t1j" }, { program: claude, title: "Refactor auth" }),
+    "Refactor auth",
+  );
+  assert.equal(
+    generalName({ address: "t1j", title: "vps/t7" }, { program: claude, title: "Refactor auth" }),
+    "Refactor auth",
+  );
+  assert.equal(
+    generalName({ address: "t1j", title: "~/src" }, { program: claude, title: "Refactor auth" }),
+    "Refactor auth",
+  );
+  assert.equal(
+    generalName({ address: "t1j", title: "Prepare v1 launch brief" }, { program: claude, title: "Refactor auth" }),
+    "Prepare v1 launch brief",
+  );
+  assert.equal(
+    generalName({ address: "t1j", title: "✳ Claude Code" }, { program: claude, title: "claude" }),
+    null,
+  );
+  const out = reconcile(
+    [{ id: "a", name: "1", named: false, terminal: { address: "t1j", title: "✳ Claude Code" }, pane: { tab: "a", terminal: "t1j", status: "working", program: claude, title: "Refactor auth" } }],
+    { now: 0 },
+  );
+  assert.deepEqual(out.renames, [{ id: "a", name: "Refactor auth" }]);
+});
+
 function world() {
   const spaces = [
     { id: "s1", tabs: [
